@@ -9,6 +9,7 @@ import {
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import usePersistentDraft from '../../hooks/usePersistentDraft';
+import SearchableAssetSelect from './SearchableAssetSelect';
 
 export default function LoanModal({
   isOpen,
@@ -26,6 +27,7 @@ export default function LoanModal({
     d.setDate(d.getDate() + 7);
     return d.toISOString().split('T')[0];
   });
+  const [tanpaTanggalKembali, setTanpaTanggalKembali] = useState(false);
   const [namaPeminjam, setNamaPeminjam] = useState('');
   const [unit, setUnit] = useState('Airport Technology');
   const [keperluan, setKeperluan] = useState('');
@@ -38,13 +40,14 @@ export default function LoanModal({
     setSelectedAssetId(draft.asetId || '');
     setTanggalPeminjaman(draft.tanggalPeminjaman || new Date().toISOString().split('T')[0]);
     setTanggalRencanaKembali(draft.tanggalRencanaKembali || '');
+    setTanpaTanggalKembali(Boolean(draft.tanpaTanggalKembali));
     setNamaPeminjam(draft.namaPeminjam || '');
     setUnit(draft.unit || '');
     setKeperluan(draft.keperluan || '');
     setKondisiSaatDipinjam(draft.kondisiSaatDipinjam || 'Baik');
     setKeterangan(draft.keterangan || '');
   }, []);
-  const draftState = { asetId: selectedAssetId, tanggalPeminjaman, tanggalRencanaKembali, namaPeminjam, unit, keperluan, kondisiSaatDipinjam, keterangan };
+  const draftState = { asetId: selectedAssetId, tanggalPeminjaman, tanggalRencanaKembali, tanpaTanggalKembali, namaPeminjam, unit, keperluan, kondisiSaatDipinjam, keterangan };
   const { visible, clearDraft } = usePersistentDraft('draft:loan', isOpen, draftState, restoreDraft);
   const closeModal = () => { clearDraft(); onClose(); };
 
@@ -85,6 +88,10 @@ export default function LoanModal({
       setErrorMsg('Pilih aset yang ingin dipinjam.');
       return;
     }
+    if (!tanpaTanggalKembali && !tanggalRencanaKembali) {
+      setErrorMsg('Harap isi rencana tanggal kembali atau centang tanpa tanggal kembali.');
+      return;
+    }
     if (!keperluan.trim()) {
       setErrorMsg('Harap isi keperluan peminjaman.');
       return;
@@ -98,7 +105,8 @@ export default function LoanModal({
       const payload = {
         aset_id: Number(selectedAssetId),
         tanggal_peminjaman: tanggalPeminjaman,
-        tanggal_rencana_kembali: tanggalRencanaKembali,
+        tanpa_tanggal_kembali: tanpaTanggalKembali ? 1 : 0,
+        tanggal_rencana_kembali: tanpaTanggalKembali ? null : tanggalRencanaKembali,
         nama_peminjam: (namaPeminjam || user?.name || 'Petugas Operasional').trim(),
         unit: (unit || 'Airport Technology').trim(),
         keperluan: keperluan.trim(),
@@ -172,20 +180,14 @@ export default function LoanModal({
               <label htmlFor="loan-aset-select" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
                 Aset yang Dipinjam (Hanya Kondisi Baik) <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <select
+              <SearchableAssetSelect
                 id="loan-aset-select"
-                className="form-control"
+                assets={availableAssets}
                 value={selectedAssetId}
-                onChange={(e) => setSelectedAssetId(e.target.value)}
-                required
-              >
-                <option value="">-- Pilih Aset Tersedia --</option>
-                {availableAssets.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.kode_aset} - {a.nama_aset} ({a.kategori?.nama_kategori || a.kategori || 'Perangkat'})
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedAssetId}
+                selectedAsset={initialAsset}
+                placeholder="Cari atau pilih aset tersedia..."
+              />
               {fieldErrors.aset_id && (
                 <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
                   {fieldErrors.aset_id[0]}
@@ -243,18 +245,44 @@ export default function LoanModal({
 
               <div className="form-group">
                 <label htmlFor="loan-tanggal-kembali" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  Rencana Tanggal Kembali <span style={{ color: '#ef4444' }}>*</span>
+                  Rencana Tanggal Kembali {!tanpaTanggalKembali && <span style={{ color: '#ef4444' }}>*</span>}
                 </label>
                 <input
                   id="loan-tanggal-kembali"
                   type="date"
                   className="form-control"
-                  value={tanggalRencanaKembali}
+                  value={tanpaTanggalKembali ? '' : tanggalRencanaKembali}
                   onChange={(e) => setTanggalRencanaKembali(e.target.value)}
                   min={tanggalPeminjaman}
-                  required
+                  disabled={tanpaTanggalKembali}
+                  required={!tanpaTanggalKembali}
+                  style={tanpaTanggalKembali ? { background: 'var(--gray-100)', cursor: 'not-allowed', color: 'var(--gray-500)' } : {}}
                 />
-                {fieldErrors.tanggal_rencana_kembali && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <input
+                    type="checkbox"
+                    id="loan-tanpa-tanggal-kembali"
+                    checked={tanpaTanggalKembali}
+                    onChange={(e) => {
+                      setTanpaTanggalKembali(e.target.checked);
+                      if (fieldErrors.tanggal_rencana_kembali) {
+                        setFieldErrors((prev) => {
+                          const copy = { ...prev };
+                          delete copy.tanggal_rencana_kembali;
+                          return copy;
+                        });
+                      }
+                    }}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary-600)' }}
+                  />
+                  <label
+                    htmlFor="loan-tanpa-tanggal-kembali"
+                    style={{ fontSize: '0.8rem', color: 'var(--gray-700)', cursor: 'pointer', userSelect: 'none', margin: 0, fontWeight: 500 }}
+                  >
+                    Tanpa Tanggal Kembali
+                  </label>
+                </div>
+                {fieldErrors.tanggal_rencana_kembali && !tanpaTanggalKembali && (
                   <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
                     {fieldErrors.tanggal_rencana_kembali[0]}
                   </div>

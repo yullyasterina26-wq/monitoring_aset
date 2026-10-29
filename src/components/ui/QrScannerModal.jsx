@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   HiOutlineQrcode,
   HiOutlineCamera,
@@ -13,6 +13,7 @@ import { MdHandshake } from 'react-icons/md';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../services/api';
 import { Badge, kondisiBadge } from './Shared';
+import useDebouncedValue from '../../hooks/useDebouncedValue';
 
 export default function QrScannerModal({
   isOpen,
@@ -26,6 +27,7 @@ export default function QrScannerModal({
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [manualCode, setManualCode] = useState('');
+  const debouncedManualCode = useDebouncedValue(manualCode, 500);
   const [scannedCode, setScannedCode] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResult, setLookupResult] = useState(null); // Asset object or null
@@ -70,7 +72,7 @@ export default function QrScannerModal({
   }, [isOpen]);
 
   // Lookup asset by code via public endpoint GET /api/assets/by-code/{kode}
-  const lookupAssetByCode = async (rawCode) => {
+  const lookupAssetByCode = useCallback(async (rawCode) => {
     if (!rawCode || !rawCode.trim()) return;
 
     let cleanCode = rawCode.trim();
@@ -112,7 +114,7 @@ export default function QrScannerModal({
     } finally {
       setLookupLoading(false);
     }
-  };
+  }, []);
 
   // Start camera scanning ONLY when user presses button
   const startCamera = async () => {
@@ -165,11 +167,11 @@ export default function QrScannerModal({
     }
   };
 
-  const handleManualSubmit = (e) => {
-    e.preventDefault();
-    if (!manualCode.trim()) return;
-    lookupAssetByCode(manualCode);
-  };
+  useEffect(() => {
+    if (isOpen && activeTab === 'manual' && debouncedManualCode.trim().length >= 3 && !lookupResult) {
+      lookupAssetByCode(debouncedManualCode);
+    }
+  }, [debouncedManualCode, isOpen, activeTab, lookupResult, lookupAssetByCode]);
 
   const handleScanAgain = () => {
     setLookupResult(null);
@@ -364,7 +366,7 @@ export default function QrScannerModal({
 
           {/* TAB 2: MANUAL INPUT */}
           {activeTab === 'manual' && !lookupResult && !lookupLoading && (
-            <form onSubmit={handleManualSubmit} style={{ marginBottom: '1rem' }}>
+            <div style={{ marginBottom: '1rem' }}>
               <div className="form-group">
                 <label htmlFor="manual-asset-code" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
                   Kode Aset (misal: AST-001)
@@ -376,16 +378,13 @@ export default function QrScannerModal({
                     className="form-control"
                     placeholder="Masukkan kode aset persis..."
                     value={manualCode}
-                    onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                    onChange={(e) => { setManualCode(e.target.value.toUpperCase()); setLookupError(''); setLookupResult(null); }}
                     autoFocus
-                    required
                   />
-                  <button type="submit" className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>
-                    Cari Aset
-                  </button>
                 </div>
+                <small style={{ display: 'block', marginTop: '6px', color: 'var(--gray-500)' }}>Pencarian dimulai otomatis setelah kode diketik.</small>
               </div>
-            </form>
+            </div>
           )}
 
           {/* LOADING STATE */}

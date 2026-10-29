@@ -15,6 +15,7 @@ import InspectionModal from '../components/ui/InspectionModal';
 import AssetDetailModal from '../components/ui/AssetDetailModal';
 import QrScannerModal from '../components/ui/QrScannerModal';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DataAsetPage() {
   const [assets, setAssets] = useState([]);
@@ -24,6 +25,7 @@ export default function DataAsetPage() {
 
   // Filters
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [kategoriId, setKategoriId] = useState('');
   const [kondisi, setKondisi] = useState('');
   const [page, setPage] = useState(1);
@@ -58,7 +60,7 @@ export default function DataAsetPage() {
     setLoading(true);
     const params = {
       page: pageNum,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       kategori_id: kategoriId || undefined,
       kondisi: kondisi || undefined,
       per_page: 10,
@@ -94,20 +96,13 @@ export default function DataAsetPage() {
 
   useEffect(() => {
     fetchAssets(page);
-  }, [page, kategoriId, kondisi]);
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setPage(1);
-    fetchAssets(1);
-  };
+  }, [page, kategoriId, kondisi, debouncedSearch]);
 
   const handleReset = () => {
     setSearch('');
     setKategoriId('');
     setKondisi('');
     setPage(1);
-    fetchAssets(1);
   };
 
   const showToast = (msg) => {
@@ -179,7 +174,7 @@ export default function DataAsetPage() {
           border: '1px solid var(--gray-200)',
         }}
       >
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Keyword Search */}
           <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
             <HiOutlineSearch
@@ -197,7 +192,7 @@ export default function DataAsetPage() {
               className="form-control"
               placeholder="Cari nama aset, kode, serial number, atau lokasi..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               style={{ paddingLeft: '38px', fontSize: '0.875rem' }}
             />
           </div>
@@ -235,14 +230,9 @@ export default function DataAsetPage() {
             >
               <option value="">Semua Kondisi</option>
               <option value="Baik">Baik</option>
-              <option value="Rusak Ringan">Rusak Ringan</option>
-              <option value="Rusak Berat">Rusak Berat</option>
+              <option value="Rusak">Rusak</option>
             </select>
           </div>
-
-          <button type="submit" className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>
-            Cari
-          </button>
 
           {(search || kategoriId || kondisi) && (
             <button
@@ -324,7 +314,7 @@ export default function DataAsetPage() {
                       {item.lokasi || '-'}
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <Badge type={kondisiBadge(item.kondisi)}>{item.kondisi}</Badge>
+                      <Badge type={kondisiBadge(item.kondisi)}>{/^rusak/i.test(item.kondisi || '') ? 'Rusak' : item.kondisi}</Badge>
                     </td>
                     <td
                       style={{ textAlign: 'center', whiteSpace: 'nowrap' }}

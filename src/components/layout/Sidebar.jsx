@@ -32,7 +32,7 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
               <MdFlight />
             </div>
             <div className="brand-text">
-              <h2>Manajemen Aset</h2>
+              <h2>Monitoring Aset</h2>
               <span>Airport Technology - Supadio</span>
             </div>
           </div>

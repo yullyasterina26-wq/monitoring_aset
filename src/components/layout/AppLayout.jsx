@@ -11,7 +11,7 @@ import {
 import { MdHandshake } from 'react-icons/md';
 import DataSyncWatcher from './DataSyncWatcher';
 
-export default function AppLayout() {
+export default function AppLayout({ theme, onThemeChange }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -39,7 +39,7 @@ export default function AppLayout() {
         onCloseMobile={() => setMobileOpen(false)}
       />
       <div className={`main-wrapper ${collapsed ? 'sidebar-collapsed' : ''}`}>
-        <Header collapsed={collapsed} onToggle={toggleSidebar} />
+        <Header collapsed={collapsed} onToggle={toggleSidebar} theme={theme} onThemeChange={onThemeChange} />
         <Outlet context={{ collapsed, toggleSidebar }} />
       </div>
 

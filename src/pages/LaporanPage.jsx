@@ -8,6 +8,22 @@ import {
 import { MdFlight } from 'react-icons/md';
 import { Loading, Badge, formatDate } from '../components/ui/Shared';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
+
+const returnDateMonitor = (loan) => {
+  if (!loan.tanggal_rencana_kembali) return { label: 'Tanpa Tanggal Kembali', overdue: false };
+  if (loan.status !== 'Dipinjam') return null;
+
+  const [year, month, day] = loan.tanggal_rencana_kembali.slice(0, 10).split('-').map(Number);
+  const due = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((due - today) / 86400000);
+
+  if (days < 0) return { label: `Jadwal lewat ${Math.abs(days)} hari`, overdue: true };
+  if (days === 0) return { label: 'Jatuh tempo hari ini', overdue: false };
+  return { label: `Jatuh tempo dalam ${days} hari`, overdue: false };
+};
 
 export default function LaporanPage() {
   const [loans, setLoans] = useState([]);
@@ -15,14 +31,16 @@ export default function LaporanPage() {
 
   // Filters
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedLoan, setSelectedLoan] = useState(null);
 
   const fetchLaporan = () => {
     setLoading(true);
     const params = {
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       status: statusFilter || undefined,
       per_page: 50,
     };
@@ -44,12 +62,7 @@ export default function LaporanPage() {
 
   useEffect(() => {
     fetchLaporan();
-  }, [statusFilter, startDate, endDate]);
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchLaporan();
-  };
+  }, [statusFilter, startDate, endDate, debouncedSearch]);
 
   const handlePrint = () => {
     window.print();
@@ -63,8 +76,6 @@ export default function LaporanPage() {
         return <span style={{ background: '#dbeafe', color: '#1e40af', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Disetujui</span>;
       case 'Dipinjam':
         return <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Dipinjam</span>;
-      case 'Terlambat':
-        return <span style={{ background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Terlambat</span>;
       case 'Selesai':
         return <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Selesai</span>;
       case 'Ditolak':
@@ -146,7 +157,7 @@ export default function LaporanPage() {
         }}
       >
         {/* Filter Bar matching Screenshot 4 */}
-        <form onSubmit={handleSearchSubmit} className="no-print" style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <form onSubmit={(e) => e.preventDefault()} className="no-print" style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Dropdown 1 with icon */}
           <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 10px', height: '42px' }}>
             <HiOutlineViewGrid style={{ color: '#64748b', fontSize: '16px', marginRight: '6px' }} />
@@ -184,7 +195,6 @@ export default function LaporanPage() {
             <option value="Menunggu">Menunggu</option>
             <option value="Dipinjam">Dipinjam</option>
             <option value="Selesai">Selesai</option>
-            <option value="Terlambat">Terlambat</option>
           </select>
 
           {/* Date 1 */}
@@ -295,7 +305,7 @@ export default function LaporanPage() {
                 </tr>
               ) : (
                 loans.map((item, idx) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={item.id} onClick={() => setSelectedLoan(item)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Klik baris untuk melihat detail peminjaman">
                     <td style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', padding: '12px 8px' }}>
                       {idx + 1}
                     </td>
@@ -314,7 +324,8 @@ export default function LaporanPage() {
                       {formatDate(item.tanggal_peminjaman)}
                     </td>
                     <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                      {formatDate(item.tanggal_rencana_kembali)}
+                      {item.tanggal_rencana_kembali ? formatDate(item.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}
+                      {item.tanggal_rencana_kembali && returnDateMonitor(item) && <div style={{ color: returnDateMonitor(item).overdue ? '#dc2626' : '#64748b', fontSize: '11px', marginTop: '3px' }}>{returnDateMonitor(item).label}</div>}
                     </td>
                     <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }}>
                       {getStatusBadge(item.status)}
@@ -353,6 +364,27 @@ export default function LaporanPage() {
           </div>
         </div>
       </div>
+
+      {selectedLoan && (
+        <div className="modal-backdrop" onClick={() => setSelectedLoan(null)} style={{ zIndex: 1060 }}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', width: '92%' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Detail Peminjaman: {selectedLoan.nomor_peminjaman || '-'}</h3>
+              <button className="modal-close" onClick={() => setSelectedLoan(null)} aria-label="Tutup">×</button>
+            </div>
+            <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.9rem' }}>
+              <div><strong>Aset</strong><div>{selectedLoan.aset?.nama_aset || '-'}</div></div>
+              <div><strong>Kode Aset</strong><div>{selectedLoan.aset?.kode_aset || '-'}</div></div>
+              <div><strong>Peminjam</strong><div>{selectedLoan.nama_peminjam || '-'}</div></div>
+              <div><strong>Unit</strong><div>{selectedLoan.unit || '-'}</div></div>
+              <div><strong>Tanggal Pinjam</strong><div>{formatDate(selectedLoan.tanggal_peminjaman)}</div></div>
+              <div><strong>Rencana Kembali</strong><div>{selectedLoan.tanggal_rencana_kembali ? formatDate(selectedLoan.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}</div></div>
+              <div><strong>Status</strong><div>{selectedLoan.status || '-'}</div></div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setSelectedLoan(null)}>Tutup</button></div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -3,7 +3,6 @@ import { useOutletContext } from 'react-router-dom';
 import {
   HiOutlineDocumentText,
   HiOutlineSearch,
-  HiOutlineFilter,
   HiOutlineEye,
   HiOutlineX,
   HiOutlineDownload,
@@ -20,6 +19,7 @@ import {
   formatDate,
 } from '../components/ui/Shared';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DokumenPage() {
   const { collapsed, toggleSidebar } = useOutletContext();
@@ -31,6 +31,7 @@ export default function DokumenPage() {
 
   // Filters
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [jenisBast, setJenisBast] = useState('');
   const [page, setPage] = useState(1);
 
@@ -44,7 +45,7 @@ export default function DokumenPage() {
     let endpoint = '/operasional/dokumen/bast';
     const params = {
       page: pageNum,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
     };
 
     if (activeTab === 'bast') {
@@ -72,19 +73,8 @@ export default function DokumenPage() {
   };
 
   useEffect(() => {
-    setPage(1);
-    fetchDocuments(1);
-  }, [activeTab, jenisBast]);
-
-  useEffect(() => {
     fetchDocuments(page);
-  }, [page]);
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setPage(1);
-    fetchDocuments(1);
-  };
+  }, [activeTab, jenisBast, page, debouncedSearch]);
 
   const viewFinalLetter = async (item) => {
     setOpeningLetter(true);
@@ -137,6 +127,7 @@ export default function DokumenPage() {
             onClick={() => {
               setActiveTab('bast');
               setSearch('');
+              setPage(1);
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -147,6 +138,7 @@ export default function DokumenPage() {
             onClick={() => {
               setActiveTab('surat_masuk');
               setSearch('');
+              setPage(1);
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -157,6 +149,7 @@ export default function DokumenPage() {
             onClick={() => {
               setActiveTab('surat_keluar');
               setSearch('');
+              setPage(1);
             }}
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
           >
@@ -167,7 +160,7 @@ export default function DokumenPage() {
         {/* Filter Card */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div className="card-body">
-            <form onSubmit={handleSearchSubmit} className="filter-form">
+            <form onSubmit={(e) => e.preventDefault()} className="filter-form">
               <div className="filter-grid">
                 <div className="form-group" style={{ flex: '2', minWidth: '220px' }}>
                   <label htmlFor="search-doc">Pencarian Dokumen</label>
@@ -183,7 +176,7 @@ export default function DokumenPage() {
                           : 'Cari nomor surat atau perihal...'
                       }
                       value={search}
-                      onChange={e => setSearch(e.target.value)}
+                      onChange={e => { setSearch(e.target.value); setPage(1); }}
                     />
                   </div>
                 </div>
@@ -195,7 +188,7 @@ export default function DokumenPage() {
                       id="filter-jenis-bast"
                       className="form-control"
                       value={jenisBast}
-                      onChange={e => setJenisBast(e.target.value)}
+                      onChange={e => { setJenisBast(e.target.value); setPage(1); }}
                     >
                       <option value="">Semua Jenis BAST</option>
                       <option value="Peminjaman">Peminjaman</option>
@@ -207,9 +200,6 @@ export default function DokumenPage() {
                 )}
 
                 <div style={{ alignSelf: 'flex-end', display: 'flex', gap: '0.5rem' }}>
-                  <button type="submit" className="btn btn-primary">
-                    <HiOutlineFilter /> Cari
-                  </button>
                   {(search || jenisBast) && (
                     <button
                       type="button"
@@ -270,7 +260,7 @@ export default function DokumenPage() {
                   </thead>
                   <tbody>
                     {dataList.map(item => (
-                      <tr key={item.id}>
+                      <tr key={item.id} onClick={(e) => { if (!e.target.closest('button, a')) setSelectedDoc({ type: 'bast', data: item }); }} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail BAST">
                         <td style={{ fontWeight: 600, color: 'var(--primary-600)' }}>
                           {item.nomor_bast}
                         </td>
@@ -322,7 +312,7 @@ export default function DokumenPage() {
                   </thead>
                   <tbody>
                     {dataList.map(item => (
-                      <tr key={item.id}>
+                      <tr key={item.id} onClick={(e) => { if (!e.target.closest('button, a')) setSelectedDoc({ type: activeTab, data: item }); }} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail surat">
                         <td style={{ fontWeight: 600, color: 'var(--primary-600)' }}>
                           {item.nomor_surat}
                         </td>

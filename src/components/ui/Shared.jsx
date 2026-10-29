@@ -24,6 +24,8 @@ export function kondisiBadge(kondisi) {
   const map = {
     'Baik': 'success',
     'Rusak': 'danger',
+    'Rusak Ringan': 'danger',
+    'Rusak Berat': 'danger',
     'Di Pinjam': 'warning',
     'Dipinjam': 'warning',
     'Di Hapus': 'danger',

@@ -92,6 +92,10 @@ export default function NotificationDropdown() {
               message = `Aset ${assetName} (${assetCode}) aktif dipinjam hingga ${loan.tanggal_rencana_kembali}.`;
               badgeType = 'info';
             }
+          } else {
+            title = 'Peminjaman Sedang Berjalan';
+            message = `Aset ${assetName} (${assetCode}) aktif dipinjam (tanpa batas tanggal kembali).`;
+            badgeType = 'info';
           }
         } else if (loan.status === 'Menunggu') {
           title = 'Pengajuan Peminjaman Terkirim';

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/layout/AppLayout';
 import LoginPage from './pages/LoginPage';
@@ -27,6 +28,16 @@ function ProtectedRoute({ children }) {
 }
 
 export default function App() {
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem('monitoring-aset-theme');
+    return savedTheme === 'dark' ? 'dark' : 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('monitoring-aset-theme', theme);
+  }, [theme]);
+
   return (
     <Routes>
       {/* Login route */}
@@ -37,7 +48,7 @@ export default function App() {
         path="/"
         element={
           <ProtectedRoute>
-            <AppLayout />
+            <AppLayout theme={theme} onThemeChange={setTheme} />
           </ProtectedRoute>
         }
       >

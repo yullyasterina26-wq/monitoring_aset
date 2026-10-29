@@ -6,6 +6,8 @@ import {
   HiOutlineExclamationCircle,
   HiOutlineInformationCircle,
   HiOutlineQrcode,
+  HiOutlineEye,
+  HiOutlineEyeOff,
 } from 'react-icons/hi';
 import { useAuth } from '../contexts/AuthContext';
 import ServerConfigModal from '../components/ui/ServerConfigModal';
@@ -17,6 +19,7 @@ export default function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [isServerModalOpen, setIsServerModalOpen] = useState(false);
@@ -148,16 +151,28 @@ export default function LoginPage() {
 
           <div className="form-group">
             <label htmlFor="login-password">Kata Sandi</label>
-            <input
-              id="login-password"
-              type="password"
-              className="form-control"
-              placeholder="Masukkan kata sandi"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
+            <div className="login-password-field">
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                className="form-control"
+                placeholder="Masukkan kata sandi"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+              <button
+                type="button"
+                className="login-password-toggle"
+                aria-label={showPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+                aria-controls="login-password"
+                aria-pressed={showPassword}
+                onClick={() => setShowPassword((visible) => !visible)}
+              >
+                {showPassword ? <HiOutlineEyeOff aria-hidden="true" /> : <HiOutlineEye aria-hidden="true" />}
+              </button>
+            </div>
           </div>
 
           <button

@@ -11,6 +11,22 @@ import { MdHandshake } from 'react-icons/md';
 import { Loading, Badge, Pagination, formatDate, formatDateTime } from '../components/ui/Shared';
 import LoanModal from '../components/ui/LoanModal';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
+
+const returnDateMonitor = (loan) => {
+  if (!loan.tanggal_rencana_kembali) return { label: 'Tanpa Tanggal Kembali', overdue: false };
+  if (loan.status !== 'Dipinjam') return null;
+
+  const [year, month, day] = loan.tanggal_rencana_kembali.slice(0, 10).split('-').map(Number);
+  const due = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.round((due - today) / 86400000);
+
+  if (days < 0) return { label: `Jadwal lewat ${Math.abs(days)} hari`, overdue: true };
+  if (days === 0) return { label: 'Jatuh tempo hari ini', overdue: false };
+  return { label: `Jatuh tempo dalam ${days} hari`, overdue: false };
+};
 
 export default function PeminjamanSayaPage() {
   const [loans, setLoans] = useState([]);
@@ -18,6 +34,7 @@ export default function PeminjamanSayaPage() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
 
@@ -32,7 +49,7 @@ export default function PeminjamanSayaPage() {
     setLoading(true);
     const params = {
       page: pageNum,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       status: statusFilter || undefined,
       per_page: 10,
     };
@@ -124,26 +141,19 @@ export default function PeminjamanSayaPage() {
   useEffect(() => {
     fetchLoans(page);
     fetchAllForStats();
-  }, [page, statusFilter]);
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setPage(1);
-    fetchLoans(1);
-  };
+  }, [page, statusFilter, debouncedSearch]);
 
   const handleReset = () => {
     setSearch('');
     setStatusFilter('');
     setPage(1);
-    fetchLoans(1);
   };
 
   // Stat Card Counts
   const countMenunggu = allLoans.filter(l => l.status === 'Menunggu').length;
   const countDisetujui = allLoans.filter(l => l.status === 'Diproses').length;
   const countSedangDipinjam = allLoans.filter(l => l.status === 'Dipinjam').length;
-  const countTerlambat = allLoans.filter(l => l.status === 'Terlambat').length;
+  const countTanpaTanggalKembali = allLoans.filter(l => l.status === 'Dipinjam' && !l.tanggal_rencana_kembali).length;
   const countSelesai = allLoans.filter(l => l.status === 'Selesai').length;
 
   const getStatusBadge = (status, statusBast) => {
@@ -159,8 +169,6 @@ export default function PeminjamanSayaPage() {
         return <span style={{ background: '#dbeafe', color: '#1e40af', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Disetujui - Menunggu BAST</span>;
       case 'Dipinjam':
         return <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Sedang Dipinjam</span>;
-      case 'Terlambat':
-        return <span style={{ background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Terlambat</span>;
       case 'Selesai':
         return <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Selesai</span>;
       case 'Ditolak':
@@ -275,23 +283,23 @@ export default function PeminjamanSayaPage() {
         >
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>Sedang Dipinjam</div>
           <div style={{ fontSize: '24px', fontWeight: 700, color: '#06b6d4', margin: '4px 0 2px' }}>{countSedangDipinjam}</div>
-          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Belum melewati tanggal kembali</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Pantau jadwal pengembalian pada daftar</div>
         </div>
 
-        {/* Card 4: Terlambat */}
+        {/* Card 4: Loans without a scheduled return date */}
         <div
           style={{
             background: '#ffffff',
             borderRadius: '8px',
             border: '1px solid #eef2f6',
-            borderTop: '3px solid #ef4444',
+            borderTop: '3px solid #64748b',
             padding: '14px 16px',
             boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           }}
         >
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#dc2626' }}>Terlambat</div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#ef4444', margin: '4px 0 2px' }}>{countTerlambat}</div>
-          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Melewati tanggal kembali</div>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Tanpa Tanggal Kembali</div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#64748b', margin: '4px 0 2px' }}>{countTanpaTanggalKembali}</div>
+          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Mengikuti pilihan admin</div>
         </div>
 
         {/* Card 5: Selesai */}
@@ -323,7 +331,7 @@ export default function PeminjamanSayaPage() {
         }}
       >
         {/* Search & Filter Bar matching Screenshot 2 */}
-        <form onSubmit={handleSearchSubmit} style={{ marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <form onSubmit={(e) => e.preventDefault()} style={{ marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <select
             value={statusFilter}
             onChange={e => {
@@ -346,7 +354,6 @@ export default function PeminjamanSayaPage() {
             <option value="Menunggu">Menunggu Persetujuan</option>
             <option value="Diproses">Disetujui - Menunggu BAST</option>
             <option value="Dipinjam">Sedang Dipinjam</option>
-            <option value="Terlambat">Terlambat</option>
             <option value="Selesai">Selesai</option>
             <option value="Ditolak">Ditolak</option>
           </select>
@@ -368,7 +375,7 @@ export default function PeminjamanSayaPage() {
             <input
               type="text"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Cari nomor, peminjam, unit, nama atau kode aset..."
               style={{
                 border: 'none',
@@ -440,7 +447,7 @@ export default function PeminjamanSayaPage() {
                 loans.map((loan, index) => {
                   const itemNumber = (pagination.from || 1) + index;
                   return (
-                    <tr key={loan.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <tr key={loan.id} onClick={() => setSelectedLoan(loan)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Klik baris untuk melihat detail peminjaman">
                       <td style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', padding: '12px 8px' }}>
                         {itemNumber}
                       </td>
@@ -459,12 +466,13 @@ export default function PeminjamanSayaPage() {
                         {formatDate(loan.tanggal_peminjaman)}
                       </td>
                       <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                        {formatDate(loan.tanggal_rencana_kembali)}
+                        {loan.tanggal_rencana_kembali ? formatDate(loan.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}
+                        {loan.tanggal_rencana_kembali && returnDateMonitor(loan) && <div style={{ color: returnDateMonitor(loan).overdue ? '#dc2626' : '#64748b', fontSize: '11px', marginTop: '3px' }}>{returnDateMonitor(loan).label}</div>}
                       </td>
                       <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>
                         {getStatusBadge(loan.status, loan.status_bast)}
                       </td>
-                      <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                      <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                         <button
                           type="button"
                           className="btn btn-secondary"
@@ -543,7 +551,8 @@ export default function PeminjamanSayaPage() {
                 </div>
                 <div>
                   <span style={{ color: '#64748b' }}>Rencana Kembali:</span>
-                  <div style={{ fontWeight: 600 }}>{formatDate(selectedLoan.tanggal_rencana_kembali)}</div>
+                  <div style={{ fontWeight: 600 }}>{selectedLoan.tanggal_rencana_kembali ? formatDate(selectedLoan.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}</div>
+                  {selectedLoan.tanggal_rencana_kembali && returnDateMonitor(selectedLoan) && <small style={{ color: returnDateMonitor(selectedLoan).overdue ? '#dc2626' : '#64748b' }}>{returnDateMonitor(selectedLoan).label}</small>}
                 </div>
               </div>
 

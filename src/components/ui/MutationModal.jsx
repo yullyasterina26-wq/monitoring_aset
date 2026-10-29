@@ -9,6 +9,7 @@ import {
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import usePersistentDraft from '../../hooks/usePersistentDraft';
+import SearchableAssetSelect from './SearchableAssetSelect';
 
 export default function MutationModal({
   isOpen,
@@ -24,6 +25,8 @@ export default function MutationModal({
   const [selectedAssetObj, setSelectedAssetObj] = useState(null);
 
   const [tanggalMutasi, setTanggalMutasi] = useState(todayStr);
+  const [tanggalRencanaKembali, setTanggalRencanaKembali] = useState('');
+  const [tanpaTanggalKembali, setTanpaTanggalKembali] = useState(true);
   const [lokasiAsal, setLokasiAsal] = useState('');
   const [lokasiTujuan, setLokasiTujuan] = useState('');
   const [unitTujuan, setUnitTujuan] = useState('');
@@ -39,6 +42,8 @@ export default function MutationModal({
     setSelectedAssetId(draft.asetId || '');
     setSelectedAssetObj(draft.aset || null);
     setTanggalMutasi(draft.tanggalMutasi || todayStr);
+    setTanggalRencanaKembali(draft.tanggalRencanaKembali || '');
+    setTanpaTanggalKembali(draft.tanpaTanggalKembali !== undefined ? Boolean(draft.tanpaTanggalKembali) : true);
     setLokasiAsal(draft.lokasiAsal || '');
     setLokasiTujuan(draft.lokasiTujuan || '');
     setUnitTujuan(draft.unitTujuan || '');
@@ -47,7 +52,7 @@ export default function MutationModal({
     setKeterangan(draft.keterangan || '');
     setDokumenFile(null);
   }, [todayStr]);
-  const draftState = { asetId: selectedAssetId, aset: selectedAssetObj, tanggalMutasi, lokasiAsal, lokasiTujuan, unitTujuan, alasan, petugas, keterangan };
+  const draftState = { asetId: selectedAssetId, aset: selectedAssetObj, tanggalMutasi, tanggalRencanaKembali, tanpaTanggalKembali, lokasiAsal, lokasiTujuan, unitTujuan, alasan, petugas, keterangan };
   const { visible, clearDraft } = usePersistentDraft('draft:mutation', isOpen, draftState, restoreDraft);
   const closeModal = () => { clearDraft(); onClose(); };
 
@@ -105,6 +110,10 @@ export default function MutationModal({
       setErrorMsg('Pilih aset yang akan dimutasi.');
       return;
     }
+    if (!tanpaTanggalKembali && !tanggalRencanaKembali) {
+      setErrorMsg('Harap isi rencana tanggal kembali atau centang tanpa tanggal kembali.');
+      return;
+    }
     if (!lokasiTujuan.trim()) {
       setErrorMsg('Lokasi tujuan wajib diisi.');
       return;
@@ -125,6 +134,10 @@ export default function MutationModal({
         // Send multipart/form-data
         const formData = new FormData();
         formData.append('tanggal_mutasi', tanggalMutasi);
+        formData.append('tanpa_tanggal_kembali', tanpaTanggalKembali ? '1' : '0');
+        if (!tanpaTanggalKembali && tanggalRencanaKembali) {
+          formData.append('tanggal_rencana_kembali', tanggalRencanaKembali);
+        }
         formData.append('aset_id', selectedAssetId);
         formData.append('lokasi_asal', lokasiAsal || selectedAssetObj?.lokasi || '-');
         formData.append('lokasi_tujuan', lokasiTujuan.trim());
@@ -144,6 +157,8 @@ export default function MutationModal({
         // Send application/json
         const payload = {
           tanggal_mutasi: tanggalMutasi,
+          tanpa_tanggal_kembali: tanpaTanggalKembali ? 1 : 0,
+          tanggal_rencana_kembali: tanpaTanggalKembali ? null : tanggalRencanaKembali,
           aset_id: Number(selectedAssetId),
           lokasi_asal: lokasiAsal || selectedAssetObj?.lokasi || '-',
           lokasi_tujuan: lokasiTujuan.trim(),
@@ -212,20 +227,14 @@ export default function MutationModal({
               <label htmlFor="mutasi-aset-select" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
                 Pilih Aset <span style={{ color: '#ef4444' }}>*</span>
               </label>
-              <select
+              <SearchableAssetSelect
                 id="mutasi-aset-select"
-                className="form-control"
+                assets={availableAssets}
                 value={selectedAssetId}
-                onChange={(e) => handleAssetChange(e.target.value)}
-                required
-              >
-                <option value="">-- Pilih Aset --</option>
-                {availableAssets.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.kode_aset} - {a.nama_aset} (Lokasi: {a.lokasi || '-'})
-                  </option>
-                ))}
-              </select>
+                onChange={handleAssetChange}
+                selectedAsset={selectedAssetObj}
+                placeholder="Cari atau pilih aset..."
+              />
               {fieldErrors.aset_id && (
                 <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
                   {fieldErrors.aset_id[0]}
@@ -233,7 +242,7 @@ export default function MutationModal({
               )}
             </div>
 
-            {/* Grid 2 Columns: Tanggal & Petugas */}
+            {/* Grid 2 Columns: Tanggal Mutasi & Tanggal Rencana Kembali */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '1rem' }}>
               <div className="form-group">
                 <label htmlFor="mutasi-tanggal" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
@@ -255,24 +264,71 @@ export default function MutationModal({
               </div>
 
               <div className="form-group">
-                <label htmlFor="mutasi-petugas" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  Nama Petugas <span style={{ color: '#ef4444' }}>*</span>
+                <label htmlFor="mutasi-tanggal-kembali" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                  Rencana Tanggal Kembali {!tanpaTanggalKembali && <span style={{ color: '#ef4444' }}>*</span>}
                 </label>
                 <input
-                  id="mutasi-petugas"
-                  type="text"
+                  id="mutasi-tanggal-kembali"
+                  type="date"
                   className="form-control"
-                  value={petugas}
-                  onChange={(e) => setPetugas(e.target.value)}
-                  placeholder="Nama petugas mutasi"
-                  required
+                  value={tanpaTanggalKembali ? '' : tanggalRencanaKembali}
+                  onChange={(e) => setTanggalRencanaKembali(e.target.value)}
+                  min={tanggalMutasi}
+                  disabled={tanpaTanggalKembali}
+                  required={!tanpaTanggalKembali}
+                  style={tanpaTanggalKembali ? { background: 'var(--gray-100)', cursor: 'not-allowed', color: 'var(--gray-500)' } : {}}
                 />
-                {fieldErrors.petugas && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <input
+                    type="checkbox"
+                    id="mutasi-tanpa-tanggal-kembali"
+                    checked={tanpaTanggalKembali}
+                    onChange={(e) => {
+                      setTanpaTanggalKembali(e.target.checked);
+                      if (fieldErrors.tanggal_rencana_kembali) {
+                        setFieldErrors((prev) => {
+                          const copy = { ...prev };
+                          delete copy.tanggal_rencana_kembali;
+                          return copy;
+                        });
+                      }
+                    }}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary-600)' }}
+                  />
+                  <label
+                    htmlFor="mutasi-tanpa-tanggal-kembali"
+                    style={{ fontSize: '0.8rem', color: 'var(--gray-700)', cursor: 'pointer', userSelect: 'none', margin: 0, fontWeight: 500 }}
+                  >
+                    Tanpa Tanggal Kembali (Mutasi Permanen)
+                  </label>
+                </div>
+                {fieldErrors.tanggal_rencana_kembali && !tanpaTanggalKembali && (
                   <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
-                    {fieldErrors.petugas[0]}
+                    {fieldErrors.tanggal_rencana_kembali[0]}
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Nama Petugas */}
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label htmlFor="mutasi-petugas" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
+                Nama Petugas <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <input
+                id="mutasi-petugas"
+                type="text"
+                className="form-control"
+                value={petugas}
+                onChange={(e) => setPetugas(e.target.value)}
+                placeholder="Nama petugas mutasi"
+                required
+              />
+              {fieldErrors.petugas && (
+                <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
+                  {fieldErrors.petugas[0]}
+                </div>
+              )}
             </div>
 
             {/* Grid 2 Columns: Lokasi Asal & Lokasi Tujuan */}

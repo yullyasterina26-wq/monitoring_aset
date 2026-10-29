@@ -9,6 +9,7 @@ import {
 } from 'react-icons/hi';
 import { Loading, Badge, Pagination, formatDateTime } from '../components/ui/Shared';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function AktivitasPage() {
   const [activeTab, setActiveTab] = useState('operasional'); // 'operasional' | 'me'
@@ -18,6 +19,7 @@ export default function AktivitasPage() {
   const [opLoading, setOpLoading] = useState(true);
   const [opPagination, setOpPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [opSearch, setOpSearch] = useState('');
+  const debouncedOpSearch = useDebouncedValue(opSearch);
   const [opPage, setOpPage] = useState(1);
 
   // Tab 2: Aktivitas Akun Sendiri (/me/activities)
@@ -25,6 +27,7 @@ export default function AktivitasPage() {
   const [meLoading, setMeLoading] = useState(true);
   const [mePagination, setMePagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [mePage, setMePage] = useState(1);
+  const [selectedActivity, setSelectedActivity] = useState(null);
 
   // Fetch Operasional Activities
   const fetchOperasional = (pageNum = 1) => {
@@ -32,7 +35,7 @@ export default function AktivitasPage() {
     api.get('/operasional/aktivitas', {
       params: {
         page: pageNum,
-        search: opSearch || undefined,
+        search: debouncedOpSearch || undefined,
         per_page: 12,
       },
     })
@@ -105,18 +108,11 @@ export default function AktivitasPage() {
     } else {
       fetchMeActivities(mePage);
     }
-  }, [activeTab, opPage, mePage]);
-
-  const handleOpSearchSubmit = (e) => {
-    e.preventDefault();
-    setOpPage(1);
-    fetchOperasional(1);
-  };
+  }, [activeTab, opPage, mePage, debouncedOpSearch]);
 
   const handleOpReset = () => {
     setOpSearch('');
     setOpPage(1);
-    fetchOperasional(1);
   };
 
   return (
@@ -199,7 +195,7 @@ export default function AktivitasPage() {
               border: '1px solid var(--gray-200)',
             }}
           >
-            <form onSubmit={handleOpSearchSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <div style={{ flex: 1, position: 'relative' }}>
                 <HiOutlineSearch
                   style={{
@@ -216,14 +212,10 @@ export default function AktivitasPage() {
                   className="form-control"
                   placeholder="Cari aktivitas, aset, kode, keterangan, atau petugas..."
                   value={opSearch}
-                  onChange={(e) => setOpSearch(e.target.value)}
+                  onChange={(e) => { setOpSearch(e.target.value); setOpPage(1); }}
                   style={{ paddingLeft: '38px', fontSize: '0.875rem' }}
                 />
               </div>
-
-              <button type="submit" className="btn btn-primary" style={{ fontSize: '0.85rem' }}>
-                Cari
-              </button>
 
               {opSearch && (
                 <button
@@ -266,7 +258,7 @@ export default function AktivitasPage() {
                   </thead>
                   <tbody>
                     {operasionalList.map((item, idx) => (
-                      <tr key={item.id || idx}>
+                      <tr key={item.id || idx} onClick={() => setSelectedActivity({ item, type: 'Aktivitas Operasional' })} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail aktivitas">
                         <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
                           {(opPagination.from || 1) + idx}
                         </td>
@@ -342,7 +334,7 @@ export default function AktivitasPage() {
                 </thead>
                 <tbody>
                   {meList.map((act, idx) => (
-                    <tr key={act.id || idx}>
+                    <tr key={act.id || idx} onClick={() => setSelectedActivity({ item: act, type: 'Aktivitas Akun' })} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail aktivitas">
                       <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
                         {(mePagination.from || 1) + idx}
                       </td>
@@ -374,6 +366,24 @@ export default function AktivitasPage() {
               />
             </div>
           )}
+        </div>
+      )}
+      {selectedActivity && (
+        <div className="modal-backdrop" onClick={() => setSelectedActivity(null)} style={{ zIndex: 1060 }}>
+          <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', width: '92%' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{selectedActivity.type}</h3>
+              <button className="modal-close" onClick={() => setSelectedActivity(null)} aria-label="Tutup"><span aria-hidden="true">×</span></button>
+            </div>
+            <div className="modal-body" style={{ display: 'grid', gap: '12px', fontSize: '0.9rem' }}>
+              <div><strong>Aktivitas</strong><div>{selectedActivity.item.aktivitas || selectedActivity.item.action || selectedActivity.item.jenis || selectedActivity.item.kegiatan || '-'}</div></div>
+              <div><strong>Waktu</strong><div>{selectedActivity.item.created_at ? formatDateTime(selectedActivity.item.created_at) : '-'}</div></div>
+              <div><strong>Petugas</strong><div>{selectedActivity.item.petugas || selectedActivity.item.user?.name || selectedActivity.item.actor_name || '-'}</div></div>
+              <div><strong>Keterangan</strong><div>{selectedActivity.item.keterangan || selectedActivity.item.deskripsi || selectedActivity.item.description || '-'}</div></div>
+              {selectedActivity.item.ip_address && <div><strong>Alamat IP / Klien</strong><div>{selectedActivity.item.ip_address}</div></div>}
+            </div>
+            <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setSelectedActivity(null)}>Tutup</button></div>
+          </div>
         </div>
       )}
     </main>

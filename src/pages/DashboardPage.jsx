@@ -7,8 +7,8 @@ import {
   HiOutlineClipboardList,
   HiOutlineClock,
   HiOutlineCheck,
-  HiOutlineQrcode,
   HiOutlineSwitchHorizontal,
+  HiOutlineSearch,
 } from 'react-icons/hi';
 import StatCard from '../components/ui/StatCard';
 import QuickActions from '../components/ui/QuickActions';
@@ -20,6 +20,7 @@ import AssetDetailModal from '../components/ui/AssetDetailModal';
 import QrScannerModal from '../components/ui/QrScannerModal';
 import api from '../services/api';
 import { formatDateTime } from '../components/ui/Shared';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -35,9 +36,11 @@ export default function DashboardPage() {
   // Available assets table state
   const [availableAssets, setAvailableAssets] = useState([]);
   const [assetsLoading, setAssetsLoading] = useState(true);
+  const [assetSearch, setAssetSearch] = useState('');
+  const debouncedAssetSearch = useDebouncedValue(assetSearch);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
 
   // Modals state
-  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
   const [selectedAssetForLoan, setSelectedAssetForLoan] = useState(null);
   const [isMutationModalOpen, setIsMutationModalOpen] = useState(false);
@@ -51,7 +54,6 @@ export default function DashboardPage() {
   // Fetch Dashboard Data
   const fetchDashboardData = async () => {
     setStatsLoading(true);
-    setAssetsLoading(true);
 
     // 1. Fetch summary from /operasional/dashboard
     try {
@@ -61,22 +63,7 @@ export default function DashboardPage() {
       console.warn('Dashboard summary endpoint fetch:', dashErr);
     }
 
-    // 2. Fetch available assets
-    try {
-      const assetRes = await api.get('/assets', {
-        params: { kondisi: 'Baik', per_page: 8 },
-      });
-      const assetData = assetRes.data?.data || assetRes.data || [];
-      const validAvailable = assetData.filter((a) => a.kondisi === 'Baik');
-      setAvailableAssets(validAvailable);
-      setAsetTersediaCount(assetRes.data?.total !== undefined ? assetRes.data.total : validAvailable.length);
-    } catch (err) {
-      console.error('Error fetching available assets:', err);
-    } finally {
-      setAssetsLoading(false);
-    }
-
-    // 3. Fetch loans count
+    // 2. Fetch loans count
     try {
       const loanRes = await api.get('/loans', { params: { per_page: 50 } });
       const loanList = loanRes.data?.data || loanRes.data || [];
@@ -98,6 +85,25 @@ export default function DashboardPage() {
       console.warn('Error fetching mutations for stats:', err);
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  const fetchAvailableAssets = async (search = '') => {
+    setAssetsLoading(true);
+    try {
+      const assetRes = await api.get('/assets', {
+        params: { kondisi: 'Baik', per_page: 8, search: search || undefined },
+      });
+      const assetData = assetRes.data?.data || assetRes.data || [];
+      const validAvailable = assetData.filter((a) => a.kondisi === 'Baik');
+      setAvailableAssets(validAvailable);
+      if (!search) {
+        setAsetTersediaCount(assetRes.data?.total !== undefined ? assetRes.data.total : validAvailable.length);
+      }
+    } catch (err) {
+      console.error('Error fetching available assets:', err);
+    } finally {
+      setAssetsLoading(false);
     }
   };
 
@@ -125,9 +131,14 @@ export default function DashboardPage() {
     }
   }, []);
 
+  useEffect(() => {
+    fetchAvailableAssets(debouncedAssetSearch);
+  }, [debouncedAssetSearch]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     fetchDashboardData();
+    fetchAvailableAssets(debouncedAssetSearch);
     setTimeout(() => setToastMessage(''), 5000);
   };
 
@@ -196,19 +207,11 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             type="button"
-            className="btn btn-primary"
-            onClick={() => setIsQrScannerOpen(true)}
-            style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-            id="btn-dashboard-scan-qr"
-          >
-            <HiOutlineQrcode style={{ fontSize: '18px' }} />
-            <span>Pindai QR</span>
-          </button>
-
-          <button
-            type="button"
             className="btn btn-secondary"
-            onClick={fetchDashboardData}
+            onClick={() => {
+              fetchDashboardData();
+              fetchAvailableAssets(debouncedAssetSearch);
+            }}
             style={{ fontSize: '0.85rem', padding: '6px 14px' }}
             id="btn-refresh-dashboard"
           >
@@ -290,6 +293,18 @@ export default function DashboardPage() {
       />
 
       {/* Available Assets Table */}
+      <div style={{ marginTop: '1.5rem', marginBottom: '0.75rem', maxWidth: '520px', position: 'relative' }}>
+        <HiOutlineSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray-400)', fontSize: '18px' }} />
+        <input
+          type="search"
+          className="form-control"
+          aria-label="Cari aset tersedia"
+          placeholder="Cari aset tersedia berdasarkan nama atau kode..."
+          value={assetSearch}
+          onChange={(event) => setAssetSearch(event.target.value)}
+          style={{ paddingLeft: '38px', fontSize: '0.875rem' }}
+        />
+      </div>
       <AssetTable
         assets={availableAssets}
         loading={assetsLoading}
@@ -298,6 +313,24 @@ export default function DashboardPage() {
           setIsLoanModalOpen(true);
         }}
         onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
+      />
+
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
+        onSelectAssetForLoan={(asset) => {
+          setSelectedAssetForLoan(asset);
+          setIsLoanModalOpen(true);
+        }}
+        onSelectAssetForMutation={(asset) => {
+          setSelectedAssetForMutation(asset);
+          setIsMutationModalOpen(true);
+        }}
+        onSelectAssetForInspection={(asset) => {
+          setSelectedAssetForInspection(asset);
+          setIsInspectionModalOpen(true);
+        }}
       />
 
       {/* Recent Activities from dashboard endpoint if available */}
@@ -344,25 +377,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* QR Scanner Modal */}
-      <QrScannerModal
-        isOpen={isQrScannerOpen}
-        onClose={() => setIsQrScannerOpen(false)}
-        onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
-        onSelectAssetForLoan={(asset) => {
-          setSelectedAssetForLoan(asset);
-          setIsLoanModalOpen(true);
-        }}
-        onSelectAssetForMutation={(asset) => {
-          setSelectedAssetForMutation(asset);
-          setIsMutationModalOpen(true);
-        }}
-        onSelectAssetForInspection={(asset) => {
-          setSelectedAssetForInspection(asset);
-          setIsInspectionModalOpen(true);
-        }}
-      />
 
       {/* Modal Pengajuan Peminjaman */}
       <LoanModal

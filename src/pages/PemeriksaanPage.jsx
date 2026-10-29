@@ -9,24 +9,28 @@ import {
 } from 'react-icons/hi';
 import { Loading, Badge, kondisiBadge, Pagination, formatDate, formatDateTime } from '../components/ui/Shared';
 import InspectionModal from '../components/ui/InspectionModal';
+import AssetDetailModal from '../components/ui/AssetDetailModal';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function PemeriksaanPage() {
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [page, setPage] = useState(1);
 
   // Modals
   const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [selectedAssetForDetail, setSelectedAssetForDetail] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
   const fetchInspections = (pageNum = 1) => {
     setLoading(true);
     const params = {
       page: pageNum,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       per_page: 10,
     };
 
@@ -60,24 +64,29 @@ export default function PemeriksaanPage() {
 
   useEffect(() => {
     fetchInspections(page);
-  }, [page]);
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setPage(1);
-    fetchInspections(1);
-  };
+  }, [page, debouncedSearch]);
 
   const handleReset = () => {
     setSearch('');
     setPage(1);
-    fetchInspections(1);
   };
 
   const handleInspectionSuccess = () => {
     setToastMessage('Hasil pemeriksaan fisik aset berhasil disimpan!');
     fetchInspections(1);
     setTimeout(() => setToastMessage(''), 5000);
+  };
+
+  const openInspectionAsset = async (inspection) => {
+    const assetId = inspection.aset?.id || inspection.aset_id;
+    if (!assetId) return;
+    try {
+      const res = await api.get(`/assets/${assetId}`);
+      setSelectedAssetForDetail(res.data?.data || res.data);
+    } catch (err) {
+      if (inspection.aset) setSelectedAssetForDetail(inspection.aset);
+      else console.error('Gagal membuka detail aset pemeriksaan:', err);
+    }
   };
 
   // Condition counts
@@ -195,7 +204,7 @@ export default function PemeriksaanPage() {
           border: '1px solid var(--gray-200)',
         }}
       >
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
             <HiOutlineSearch
               style={{
@@ -212,14 +221,10 @@ export default function PemeriksaanPage() {
               className="form-control"
               placeholder="Cari aset, kode, atau catatan pemeriksaan..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               style={{ paddingLeft: '38px', fontSize: '0.875rem' }}
             />
           </div>
-
-          <button type="submit" className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>
-            Cari
-          </button>
 
           {search && (
             <button
@@ -276,7 +281,7 @@ export default function PemeriksaanPage() {
                 {inspections.map((insp, idx) => {
                   const kondisiValue = insp.kondisi_baru || insp.kondisi || 'Baik';
                   return (
-                    <tr key={insp.id || idx}>
+                    <tr key={insp.id || idx} onClick={() => openInspectionAsset(insp)} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail aset">
                       <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
                         {(pagination.from || 1) + idx}
                       </td>
@@ -326,6 +331,9 @@ export default function PemeriksaanPage() {
         onClose={() => setIsInspectionModalOpen(false)}
         onSuccess={handleInspectionSuccess}
       />
+      {selectedAssetForDetail && (
+        <AssetDetailModal asset={selectedAssetForDetail} onClose={() => setSelectedAssetForDetail(null)} />
+      )}
     </main>
   );
 }

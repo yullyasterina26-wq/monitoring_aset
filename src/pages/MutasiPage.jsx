@@ -13,12 +13,14 @@ import {
 import { Loading, Badge, Pagination, formatDate } from '../components/ui/Shared';
 import MutationModal from '../components/ui/MutationModal';
 import api from '../services/api';
+import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function MutasiPage() {
   const [mutations, setMutations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search);
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
 
@@ -31,7 +33,7 @@ export default function MutasiPage() {
     setLoading(true);
     const params = {
       page: pageNum,
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       status: statusFilter || undefined,
       per_page: 10,
     };
@@ -66,19 +68,12 @@ export default function MutasiPage() {
 
   useEffect(() => {
     fetchMutations(page);
-  }, [page, statusFilter]);
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    setPage(1);
-    fetchMutations(1);
-  };
+  }, [page, statusFilter, debouncedSearch]);
 
   const handleReset = () => {
     setSearch('');
     setStatusFilter('');
     setPage(1);
-    fetchMutations(1);
   };
 
   const openDetail = async (id) => {
@@ -230,7 +225,7 @@ export default function MutasiPage() {
           border: '1px solid var(--gray-200)',
         }}
       >
-        <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
             <HiOutlineSearch
               style={{
@@ -247,7 +242,7 @@ export default function MutasiPage() {
               className="form-control"
               placeholder="Cari aset, kode, lokasi, atau petugas..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               style={{ paddingLeft: '38px', fontSize: '0.875rem' }}
             />
           </div>
@@ -266,10 +261,6 @@ export default function MutasiPage() {
               <option value="Ditolak">Ditolak</option>
             </select>
           </div>
-
-          <button type="submit" className="btn btn-primary" style={{ fontSize: '0.85rem', padding: '8px 16px' }}>
-            Cari
-          </button>
 
           {(search || statusFilter) && (
             <button
@@ -329,7 +320,7 @@ export default function MutasiPage() {
               </thead>
               <tbody>
                 {mutations.map((m, idx) => (
-                  <tr key={m.id || idx}>
+                  <tr key={m.id || idx} onClick={() => openDetail(m.id)} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail mutasi">
                     <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
                       {(pagination.from || 1) + idx}
                     </td>
@@ -359,7 +350,7 @@ export default function MutasiPage() {
                     <td style={{ textAlign: 'center' }}>
                       {getStatusBadge(m.status)}
                     </td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         className="btn btn-secondary"

@@ -4,11 +4,11 @@ import {
   HiOutlineLogout,
   HiOutlineMenu,
   HiOutlineServer,
-  HiOutlineQrcode,
+  HiOutlineSun,
+  HiOutlineMoon,
 } from 'react-icons/hi';
 import { useAuth } from '../../contexts/AuthContext';
 import ServerConfigModal from '../ui/ServerConfigModal';
-import QrScannerModal from '../ui/QrScannerModal';
 import AssetDetailModal from '../ui/AssetDetailModal';
 import LoanModal from '../ui/LoanModal';
 import MutationModal from '../ui/MutationModal';
@@ -16,14 +16,13 @@ import InspectionModal from '../ui/InspectionModal';
 import NotificationDropdown from '../ui/NotificationDropdown';
 import { getApiBaseUrl } from '../../services/api';
 
-export default function Header({ collapsed, onToggle }) {
+export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
   const { user, logout } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   // Header quick modals
   const [isServerModalOpen, setIsServerModalOpen] = useState(false);
-  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [selectedAssetForDetail, setSelectedAssetForDetail] = useState(null);
   const [selectedAssetForLoan, setSelectedAssetForLoan] = useState(null);
   const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
@@ -51,8 +50,8 @@ export default function Header({ collapsed, onToggle }) {
       <header
         className={`header ${collapsed ? 'sidebar-collapsed' : ''}`}
         style={{
-          background: '#ffffff',
-          borderBottom: '1px solid #eef2f6',
+          background: 'var(--bg-card)',
+          borderBottom: '1px solid var(--gray-200)',
           height: '64px',
           padding: '0 20px',
           display: 'flex',
@@ -73,32 +72,12 @@ export default function Header({ collapsed, onToggle }) {
             <HiOutlineMenu />
           </button>
 
-          <h1 style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b', margin: 0, whiteSpace: 'nowrap' }}>
+          <h1 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--gray-900)', margin: 0, whiteSpace: 'nowrap' }}>
             SIMA Operator
           </h1>
         </div>
 
         <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {/* Quick QR Scanner Button */}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setIsQrScannerOpen(true)}
-            style={{
-              padding: '6px 12px',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              borderRadius: '8px',
-            }}
-            title="Buka Pindai QR Kamera"
-            id="btn-header-scan-qr"
-          >
-            <HiOutlineQrcode style={{ fontSize: '16px', color: 'var(--primary-600)' }} />
-            <span className="hide-on-mobile-sm">Pindai QR</span>
-          </button>
-
           {/* Server Config Indicator */}
           <button
             type="button"
@@ -118,6 +97,29 @@ export default function Header({ collapsed, onToggle }) {
             <HiOutlineServer style={{ fontSize: '16px', color: '#16a34a' }} />
             <span className="hide-on-mobile-sm">Server</span>
           </button>
+
+          <div className="theme-switch" role="group" aria-label="Pilih tampilan">
+            <button
+              type="button"
+              className={`theme-option ${theme === 'light' ? 'active' : ''}`}
+              aria-pressed={theme === 'light'}
+              onClick={() => onThemeChange('light')}
+              title="Light mode"
+            >
+              <HiOutlineSun aria-hidden="true" />
+              <span>Light</span>
+            </button>
+            <button
+              type="button"
+              className={`theme-option ${theme === 'dark' ? 'active' : ''}`}
+              aria-pressed={theme === 'dark'}
+              onClick={() => onThemeChange('dark')}
+              title="Dark mode"
+            >
+              <HiOutlineMoon aria-hidden="true" />
+              <span>Dark</span>
+            </button>
+          </div>
 
           {/* Notifikasi Aktivitas Peminjaman & Mutasi */}
           <NotificationDropdown />
@@ -278,24 +280,6 @@ export default function Header({ collapsed, onToggle }) {
         isOpen={isServerModalOpen}
         onClose={() => setIsServerModalOpen(false)}
         onSaved={(url) => setActiveBaseUrl(url)}
-      />
-
-      <QrScannerModal
-        isOpen={isQrScannerOpen}
-        onClose={() => setIsQrScannerOpen(false)}
-        onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
-        onSelectAssetForLoan={(asset) => {
-          setSelectedAssetForLoan(asset);
-          setIsLoanModalOpen(true);
-        }}
-        onSelectAssetForMutation={(asset) => {
-          setSelectedAssetForMutation(asset);
-          setIsMutationModalOpen(true);
-        }}
-        onSelectAssetForInspection={(asset) => {
-          setSelectedAssetForInspection(asset);
-          setIsInspectionModalOpen(true);
-        }}
       />
 
       <AssetDetailModal

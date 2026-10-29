@@ -3,9 +3,12 @@ import {
   HiOutlineX,
   HiOutlineClipboardCheck,
   HiOutlineExclamationCircle,
+  HiOutlineQrcode,
 } from 'react-icons/hi';
 import api from '../../services/api';
 import usePersistentDraft from '../../hooks/usePersistentDraft';
+import QrScannerModal from './QrScannerModal';
+import SearchableAssetSelect from './SearchableAssetSelect';
 
 export default function InspectionModal({
   isOpen,
@@ -20,6 +23,7 @@ export default function InspectionModal({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const restoreDraft = useCallback((draft) => {
     setSelectedAssetId(draft.asetId || '');
     setKondisiBaru(draft.kondisiBaru || 'Baik');
@@ -28,6 +32,16 @@ export default function InspectionModal({
   const draftState = { asetId: selectedAssetId, kondisiBaru, keterangan };
   const { visible, clearDraft } = usePersistentDraft('draft:inspection', isOpen, draftState, restoreDraft);
   const closeModal = () => { clearDraft(); onClose(); };
+
+  const handleScannedAsset = (asset) => {
+    setAvailableAssets((current) => current.some((item) => item.id === asset.id)
+      ? current
+      : [asset, ...current]);
+    setSelectedAssetId(asset.id);
+    if (['Baik', 'Rusak Ringan', 'Rusak Berat'].includes(asset.kondisi)) {
+      setKondisiBaru(asset.kondisi);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -135,23 +149,22 @@ export default function InspectionModal({
 
             {/* Aset Selection */}
             <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label htmlFor="pemeriksaan-aset-select" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                Pilih Aset <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <select
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <label htmlFor="pemeriksaan-aset-select" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px' }}>
+                  Pilih Aset <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsQrScannerOpen(true)} style={{ padding: '5px 9px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <HiOutlineQrcode /> Scan QR Code
+                </button>
+              </div>
+              <SearchableAssetSelect
                 id="pemeriksaan-aset-select"
-                className="form-control"
+                assets={availableAssets}
                 value={selectedAssetId}
-                onChange={(e) => setSelectedAssetId(e.target.value)}
-                required
-              >
-                <option value="">-- Pilih Aset --</option>
-                {availableAssets.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.kode_aset} - {a.nama_aset} (Kondisi: {a.kondisi})
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedAssetId}
+                selectedAsset={initialAsset}
+                placeholder="Cari atau pilih aset..."
+              />
               {fieldErrors.aset_id && (
                 <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
                   {fieldErrors.aset_id[0]}
@@ -214,6 +227,11 @@ export default function InspectionModal({
           </div>
         </form>
       </div>
+      <QrScannerModal
+        isOpen={isQrScannerOpen}
+        onClose={() => setIsQrScannerOpen(false)}
+        onSelectAssetForInspection={handleScannedAsset}
+      />
     </div>
   );
 }

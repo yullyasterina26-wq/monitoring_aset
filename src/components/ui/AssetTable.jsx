@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { HiOutlineCube, HiOutlineEye, HiOutlineCheck } from 'react-icons/hi';
+import { HiOutlineCube, HiOutlineCheck } from 'react-icons/hi';
 import { Badge, Loading } from './Shared';
 
 export default function AssetTable({
@@ -79,12 +79,24 @@ export default function AssetTable({
                   <th style={{ width: '150px' }}>Kode</th>
                   <th>Nama Aset</th>
                   <th>Kategori</th>
-                  <th style={{ width: '180px', textAlign: 'center' }}>Aksi</th>
+                  {onSelectAsset && <th style={{ width: '110px', textAlign: 'center' }}>Aksi</th>}
                 </tr>
               </thead>
               <tbody>
                 {assets.map(asset => (
-                  <tr key={asset.id}>
+                  <tr
+                    key={asset.id}
+                    onClick={() => onViewDetail?.(asset)}
+                    onKeyDown={(event) => {
+                      if (onViewDetail && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        onViewDetail(asset);
+                      }
+                    }}
+                    tabIndex={onViewDetail ? 0 : undefined}
+                    style={{ cursor: onViewDetail ? 'pointer' : undefined }}
+                    title={onViewDetail ? 'Klik baris untuk melihat detail aset' : undefined}
+                  >
                     <td style={{ fontWeight: 600, color: 'var(--primary-600)', fontSize: '0.85rem' }}>
                       {asset.kode_aset}
                     </td>
@@ -101,26 +113,8 @@ export default function AssetTable({
                         {asset.kategori?.nama_kategori || asset.kategori || 'Perangkat'}
                       </Badge>
                     </td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                    {onSelectAsset && <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} onClick={e => e.stopPropagation()}>
                       <div style={{ display: 'inline-flex', gap: '6px' }}>
-                        {onViewDetail && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => onViewDetail(asset)}
-                            style={{
-                              padding: '4px 10px',
-                              fontSize: '0.8rem',
-                              borderRadius: '6px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                            }}
-                            title="Detail Aset"
-                          >
-                            <HiOutlineEye /> Detail
-                          </button>
-                        )}
                         {onSelectAsset && (
                           <button
                             type="button"
@@ -140,7 +134,7 @@ export default function AssetTable({
                           </button>
                         )}
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>
