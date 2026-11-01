@@ -9,6 +9,7 @@ import api from '../../services/api';
 import usePersistentDraft from '../../hooks/usePersistentDraft';
 import QrScannerModal from './QrScannerModal';
 import SearchableAssetSelect from './SearchableAssetSelect';
+import PhotoEvidenceInput from './PhotoEvidenceInput';
 
 export default function InspectionModal({
   isOpen,
@@ -19,7 +20,9 @@ export default function InspectionModal({
   const [availableAssets, setAvailableAssets] = useState([]);
   const [selectedAssetId, setSelectedAssetId] = useState('');
   const [kondisiBaru, setKondisiBaru] = useState('Baik');
-  const [keterangan, setKeterangan] = useState('Pemeriksaan fisik rutin operasional');
+  const [keterangan, setKeterangan] = useState('');
+  const [fotoPemeriksaan, setFotoPemeriksaan] = useState(null);
+  const [fotoError, setFotoError] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
@@ -31,7 +34,7 @@ export default function InspectionModal({
   }, []);
   const draftState = { asetId: selectedAssetId, kondisiBaru, keterangan };
   const { visible, clearDraft } = usePersistentDraft('draft:inspection', isOpen, draftState, restoreDraft);
-  const closeModal = () => { clearDraft(); onClose(); };
+  const closeModal = () => { clearDraft(); setFotoPemeriksaan(null); setFotoError(''); onClose(); };
 
   const handleScannedAsset = (asset) => {
     setAvailableAssets((current) => current.some((item) => item.id === asset.id)
@@ -47,6 +50,9 @@ export default function InspectionModal({
     if (isOpen) {
       setErrorMsg('');
       setFieldErrors({});
+      setKeterangan('');
+      setFotoPemeriksaan(null);
+      setFotoError('');
 
       if (initialAsset) {
         setSelectedAssetId(initialAsset.id);
@@ -83,20 +89,29 @@ export default function InspectionModal({
       setErrorMsg('Catatan hasil pemeriksaan wajib diisi.');
       return;
     }
+    if (fotoError) {
+      setErrorMsg(fotoError);
+      return;
+    }
+    if (!fotoPemeriksaan) {
+      setErrorMsg('Foto bukti pemeriksaan wajib diunggah.');
+      return;
+    }
 
     setLoading(true);
     setErrorMsg('');
     setFieldErrors({});
 
     try {
-      const payload = {
-        aset_id: Number(selectedAssetId),
-        kondisi_baru: kondisiBaru,
-        keterangan: keterangan.trim(),
-      };
+      const formData = new FormData();
+      formData.append('aset_id', selectedAssetId);
+      formData.append('kondisi_baru', kondisiBaru);
+      formData.append('keterangan', keterangan.trim());
+      if (fotoPemeriksaan) formData.append('foto', fotoPemeriksaan);
 
-      const res = await api.post('/operasional/pemeriksaan', payload);
+      const res = await api.post('/operasional/pemeriksaan', formData);
       clearDraft();
+      setFotoPemeriksaan(null);
       if (onSuccess) onSuccess(res.data);
       onClose();
     } catch (err) {
@@ -129,11 +144,12 @@ export default function InspectionModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} onInvalidCapture={() => setErrorMsg('Lengkapi semua kolom yang bertanda wajib sebelum menyimpan pemeriksaan.')}>
           <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
             {errorMsg && (
               <div
                 className="alert alert-danger"
+                role="alert"
                 style={{
                   fontSize: '0.85rem',
                   display: 'flex',
@@ -215,6 +231,14 @@ export default function InspectionModal({
                 </div>
               )}
             </div>
+
+            <PhotoEvidenceInput
+              label="Foto Bukti Pemeriksaan"
+              required
+              value={fotoPemeriksaan}
+              onChange={(file, error) => { setFotoPemeriksaan(file); setFotoError(error); }}
+              error={fotoError || fieldErrors.foto?.[0]}
+            />
           </div>
 
           <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>

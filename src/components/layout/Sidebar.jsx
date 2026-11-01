@@ -8,6 +8,8 @@ import {
   HiOutlineX,
   HiOutlineSwitchHorizontal,
   HiOutlineClipboardCheck,
+  HiOutlineTrash,
+  HiOutlineUserCircle,
 } from 'react-icons/hi';
 import { MdFlight, MdHandshake } from 'react-icons/md';
 import { useAuth } from '../../contexts/AuthContext';
@@ -107,6 +109,17 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
             <span className="nav-text">Pemeriksaan Fisik</span>
           </NavLink>
 
+          <NavLink
+            to="/penghapusan"
+            className={`nav-item ${isActive('/penghapusan') ? 'active' : ''}`}
+            onClick={onCloseMobile}
+            title="Pengajuan Penghapusan"
+            id="nav-penghapusan"
+          >
+            <span className="nav-icon"><HiOutlineTrash /></span>
+            <span className="nav-text">Penghapusan Aset</span>
+          </NavLink>
+
           {/* Bagian AKTIVITAS & LAPORAN */}
           <div className="nav-section-title">LOG &amp; LAPORAN</div>
           <NavLink
@@ -129,6 +142,18 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
           >
             <span className="nav-icon"><HiOutlineDocumentText /></span>
             <span className="nav-text">Laporan</span>
+          </NavLink>
+
+          <div className="nav-section-title">AKUN</div>
+          <NavLink
+            to="/profil"
+            className={`nav-item ${isActive('/profil') ? 'active' : ''}`}
+            onClick={onCloseMobile}
+            title="Profil Saya"
+            id="nav-profil"
+          >
+            <span className="nav-icon"><HiOutlineUserCircle /></span>
+            <span className="nav-text">Profil Saya</span>
           </NavLink>
         </nav>
 

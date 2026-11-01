@@ -10,11 +10,13 @@ import PemeriksaanPage from './pages/PemeriksaanPage';
 import AktivitasPage from './pages/AktivitasPage';
 import DokumenPage from './pages/DokumenPage';
 import LaporanPage from './pages/LaporanPage';
+import PenghapusanPage from './pages/PenghapusanPage';
+import ProfilPage from './pages/ProfilPage';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) {
+  if (loading && !isAuthenticated) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <div className="animate-spin" style={{ width: '36px', height: '36px', border: '3px solid #e2e8f0', borderTopColor: '#2563eb', borderRadius: '50%' }} />
@@ -57,6 +59,8 @@ export default function App() {
         <Route path="peminjaman" element={<PeminjamanSayaPage />} />
         <Route path="mutasi" element={<MutasiPage />} />
         <Route path="pemeriksaan" element={<PemeriksaanPage />} />
+        <Route path="penghapusan" element={<PenghapusanPage />} />
+        <Route path="profil" element={<ProfilPage />} />
         <Route path="aktivitas" element={<AktivitasPage />} />
         <Route path="dokumen" element={<DokumenPage />} />
         <Route path="laporan" element={<LaporanPage />} />

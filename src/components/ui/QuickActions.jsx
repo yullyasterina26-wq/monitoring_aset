@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   HiOutlineCube,
   HiOutlinePlusCircle,
@@ -6,6 +7,7 @@ import {
   HiOutlineQrcode,
   HiOutlineSwitchHorizontal,
   HiOutlineClipboardCheck,
+  HiOutlineTrash,
 } from 'react-icons/hi';
 
 export default function QuickActions({
@@ -15,6 +17,7 @@ export default function QuickActions({
   onOpenInspectionModal,
 }) {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   return (
     <div
@@ -77,6 +80,7 @@ export default function QuickActions({
           <span>Pindai QR Aset</span>
         </button>
 
+        {!isAdmin && <>
         {/* Tombol 2: Ajukan Peminjaman */}
         <button
           type="button"
@@ -100,7 +104,6 @@ export default function QuickActions({
           <HiOutlinePlusCircle style={{ fontSize: '1.25rem' }} />
           <span>Ajukan Pinjam</span>
         </button>
-
         {/* Tombol 3: Ajukan Mutasi */}
         <button
           type="button"
@@ -124,6 +127,30 @@ export default function QuickActions({
           <HiOutlineSwitchHorizontal style={{ fontSize: '1.25rem' }} />
           <span>Ajukan Mutasi</span>
         </button>
+        {/* Pengajuan penghapusan diproses melalui halaman pengajuan operasional. */}
+        <button
+          type="button"
+          onClick={() => navigate('/penghapusan')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '12px 14px',
+            borderRadius: '10px',
+            background: '#fef2f2',
+            color: '#b91c1c',
+            border: '1px solid #fecaca',
+            fontWeight: 600,
+            fontSize: '0.875rem',
+            cursor: 'pointer',
+          }}
+          id="btn-quick-deletion-request"
+        >
+          <HiOutlineTrash style={{ fontSize: '1.25rem' }} />
+          <span>Ajukan Penghapusan</span>
+        </button>
+        </>}
 
         {/* Tombol 4: Catat Pemeriksaan */}
         <button

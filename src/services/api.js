@@ -1,11 +1,41 @@
 import axios from 'axios';
 
+const getResponseCache = new Map();
+const inFlightRefreshes = new Map();
+const CACHE_REFRESH_MS = 10_000;
+let cacheGeneration = 0;
+
+function stableParams(value) {
+  if (Array.isArray(value)) return value.map(stableParams);
+  if (value && typeof value === 'object') {
+    return Object.keys(value).sort().reduce((result, key) => {
+      result[key] = stableParams(value[key]);
+      return result;
+    }, {});
+  }
+  return value;
+}
+
+function responseCacheKey(url, config = {}) {
+  const token = localStorage.getItem('auth_token') || '';
+  const base = config.baseURL || getApiBaseUrl();
+  return `${token}|${base}|${url}|${JSON.stringify(stableParams(config.params || {}))}`;
+}
+
 export function getApiBaseUrl() {
   const custom = localStorage.getItem('custom_api_base_url');
   if (custom && custom.trim()) {
     return custom.trim().replace(/\/+$/, '');
   }
   return (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+}
+
+export function getStorageUrl(path) {
+  if (!path) return '';
+  if (/^https?:\/\//i.test(path)) return path;
+  const base = getApiBaseUrl().replace(/\/api\/?$/i, '');
+  const normalizedPath = String(path).replace(/^\/+/, '').replace(/^storage\//i, '');
+  return `${base}/storage/${normalizedPath}`;
 }
 
 export function setCustomApiBaseUrl(url) {
@@ -34,10 +64,53 @@ const api = axios.create({
   timeout: 15000,
 });
 
+// Reuse recently loaded GET responses on navigation, then refresh them quietly.
+const axiosGet = api.get.bind(api);
+api.get = (url, config = {}) => {
+  if (config.responseType && config.responseType !== 'json') return axiosGet(url, config);
+
+  const key = responseCacheKey(url, config);
+  const cached = getResponseCache.get(key);
+  const requestGeneration = cacheGeneration;
+
+  if (cached) {
+    if (Date.now() - cached.checkedAt >= CACHE_REFRESH_MS && !inFlightRefreshes.has(key)) {
+      cached.checkedAt = Date.now();
+      const refresh = axiosGet(url, config)
+        .then((response) => {
+          if (requestGeneration === cacheGeneration) {
+            getResponseCache.set(key, { response, checkedAt: Date.now() });
+          }
+        })
+        .catch(() => {})
+        .finally(() => inFlightRefreshes.delete(key));
+      inFlightRefreshes.set(key, refresh);
+    }
+
+    return Promise.resolve({
+      ...cached.response,
+      config: { ...cached.response.config, ...config },
+    });
+  }
+
+  return axiosGet(url, config).then((response) => {
+    if (requestGeneration === cacheGeneration) {
+      getResponseCache.set(key, { response, checkedAt: Date.now() });
+      if (getResponseCache.size > 100) getResponseCache.delete(getResponseCache.keys().next().value);
+    }
+    return response;
+  });
+};
+
 // Request interceptor - attach dynamic base URL & auth token
 api.interceptors.request.use(
   (config) => {
     config.baseURL = getApiBaseUrl();
+    if (config.method && config.method.toLowerCase() !== 'get') {
+      cacheGeneration += 1;
+      getResponseCache.clear();
+      inFlightRefreshes.clear();
+    }
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -58,6 +131,9 @@ api.interceptors.response.use(
         // Clear expired / invalid token
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
+        cacheGeneration += 1;
+        getResponseCache.clear();
+        inFlightRefreshes.clear();
 
         // Dispatch an unauthorized event so AuthContext/UI can react
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));

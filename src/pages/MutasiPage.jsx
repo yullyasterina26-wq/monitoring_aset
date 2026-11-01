@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   HiOutlineSwitchHorizontal,
   HiOutlinePlus,
@@ -12,10 +13,37 @@ import {
 } from 'react-icons/hi';
 import { Loading, Badge, Pagination, formatDate } from '../components/ui/Shared';
 import MutationModal from '../components/ui/MutationModal';
-import api from '../services/api';
+import ImagePreview from '../components/ui/ImagePreview';
+import api, { getStorageUrl } from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 
+function ProtectedMutationPhoto({ mutation }) {
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+    api.get(`/mutations/${mutation.id}/photo`, { responseType: 'blob' })
+      .then(({ data }) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(data);
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [mutation.id]);
+
+  if (failed) return <div style={{ color: 'var(--gray-500)', fontSize: '0.8rem', marginTop: '6px' }}>Foto tidak dapat dimuat.</div>;
+  if (!photoUrl) return <div style={{ color: 'var(--gray-500)', fontSize: '0.8rem', marginTop: '6px' }}>Memuat foto...</div>;
+  return <ImagePreview src={photoUrl} alt="Foto bukti mutasi" imageStyle={{ maxWidth: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--gray-200)' }} buttonStyle={{ display: 'block', marginTop: '6px' }} />;
+}
+
 export default function MutasiPage() {
+  const { isAdmin } = useAuth();
   const [mutations, setMutations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
@@ -157,7 +185,7 @@ export default function MutasiPage() {
           </p>
         </div>
 
-        <button
+        {!isAdmin && <button
           type="button"
           className="btn btn-primary"
           onClick={() => setIsMutationModalOpen(true)}
@@ -166,7 +194,7 @@ export default function MutasiPage() {
         >
           <HiOutlinePlus style={{ fontSize: '18px' }} />
           <span>Ajukan Mutasi Baru</span>
-        </button>
+        </button>}
       </div>
 
       {/* Stat Cards */}
@@ -278,7 +306,7 @@ export default function MutasiPage() {
 
       {/* Mutations List */}
       <div className="card" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--gray-200)' }}>
-        {loading ? (
+        {loading && mutations.length === 0 ? (
           <div style={{ padding: '3rem' }}>
             <Loading text="Memuat daftar mutasi aset..." />
           </div>
@@ -293,14 +321,14 @@ export default function MutasiPage() {
                 ? 'Tidak ditemukan mutasi yang sesuai filter pencarian.'
                 : 'Belum ada pengajuan mutasi aset yang dicatat.'}
             </p>
-            <button
+            {!isAdmin && <button
               type="button"
               className="btn btn-primary"
               onClick={() => setIsMutationModalOpen(true)}
               style={{ fontSize: '0.85rem' }}
             >
               Ajukan Mutasi Sekarang
-            </button>
+            </button>}
           </div>
         ) : (
           <div className="table-responsive">
@@ -383,7 +411,7 @@ export default function MutasiPage() {
 
       {/* Modal Pengajuan Mutasi */}
       <MutationModal
-        isOpen={isMutationModalOpen}
+        isOpen={!isAdmin && isMutationModalOpen}
         onClose={() => setIsMutationModalOpen(false)}
         onSuccess={handleMutationSuccess}
       />
@@ -472,12 +500,19 @@ export default function MutasiPage() {
                   </div>
                 )}
 
+                {selectedMutation.foto_mutasi && (
+                  <div style={{ gridColumn: 'span 2', marginTop: '6px' }}>
+                    <span style={{ color: 'var(--gray-500)', fontSize: '0.75rem' }}>Foto Bukti Mutasi</span>
+                    <ProtectedMutationPhoto mutation={selectedMutation} />
+                  </div>
+                )}
+
                 {selectedMutation.dokumen && (
                   <div style={{ gridColumn: 'span 2', marginTop: '6px' }}>
                     <span style={{ color: 'var(--gray-500)', fontSize: '0.75rem' }}>Dokumen Lampiran</span>
                     <div style={{ marginTop: '4px' }}>
                       <a
-                        href={selectedMutation.dokumen.startsWith('http') ? selectedMutation.dokumen : `/storage/${selectedMutation.dokumen}`}
+                        href={getStorageUrl(selectedMutation.dokumen)}
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-secondary"

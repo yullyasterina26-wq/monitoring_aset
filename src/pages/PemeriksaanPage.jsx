@@ -10,8 +10,34 @@ import {
 import { Loading, Badge, kondisiBadge, Pagination, formatDate, formatDateTime } from '../components/ui/Shared';
 import InspectionModal from '../components/ui/InspectionModal';
 import AssetDetailModal from '../components/ui/AssetDetailModal';
+import ImagePreview from '../components/ui/ImagePreview';
 import api from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
+
+function ProtectedInspectionPhoto({ inspection }) {
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+    api.get(`/operasional/pemeriksaan/${inspection.id}/photo`, { responseType: 'blob' })
+      .then(({ data }) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(data);
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [inspection.id]);
+
+  if (failed) return <span style={{ color: 'var(--gray-500)', fontSize: '0.75rem' }}>Foto tidak dapat dimuat</span>;
+  if (!photoUrl) return <span style={{ color: 'var(--gray-500)', fontSize: '0.75rem' }}>Memuat foto...</span>;
+  return <ImagePreview src={photoUrl} alt="Foto bukti pemeriksaan" imageStyle={{ width: '54px', height: '54px', objectFit: 'cover', borderRadius: '6px' }} />;
+}
 
 export default function PemeriksaanPage() {
   const [inspections, setInspections] = useState([]);
@@ -242,7 +268,7 @@ export default function PemeriksaanPage() {
 
       {/* Inspections Table */}
       <div className="card" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--gray-200)' }}>
-        {loading ? (
+        {loading && inspections.length === 0 ? (
           <div style={{ padding: '3rem' }}>
             <Loading text="Memuat riwayat pemeriksaan aset..." />
           </div>
@@ -274,6 +300,8 @@ export default function PemeriksaanPage() {
                   <th>Aset Diperiksa</th>
                   <th>Kondisi Hasil Cek</th>
                   <th>Catatan / Keterangan</th>
+                  <th>Foto</th>
+                  <th>Status Admin</th>
                   <th>Petugas</th>
                 </tr>
               </thead>
@@ -301,6 +329,17 @@ export default function PemeriksaanPage() {
                       </td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--gray-700)', maxWidth: '320px' }}>
                         {insp.keterangan || '-'}
+                      </td>
+                      <td onClick={(event) => event.stopPropagation()}>
+                        {insp.foto ? (
+                          <ProtectedInspectionPhoto inspection={insp} />
+                        ) : <span style={{ color: 'var(--gray-400)' }}>-</span>}
+                      </td>
+                      <td>
+                        <Badge type={insp.status === 'Disetujui' ? 'success' : (insp.status === 'Ditolak' ? 'danger' : 'warning')}>
+                          {insp.status || 'Disetujui'}
+                        </Badge>
+                        {insp.catatan_admin && <small style={{ display: 'block', color: 'var(--gray-500)', maxWidth: '180px' }}>{insp.catatan_admin}</small>}
                       </td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
                         {insp.petugas || insp.user?.name || '-'}

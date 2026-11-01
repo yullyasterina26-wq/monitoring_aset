@@ -55,7 +55,7 @@ export default function AssetTable({
       </div>
 
       <div className="card-body" style={{ padding: 0 }}>
-        {loading ? (
+        {loading && assets.length === 0 ? (
           <div style={{ padding: '2rem' }}>
             <Loading message="Memuat aset tersedia..." />
           </div>

@@ -286,7 +286,7 @@ export default function LaporanPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+                  {loading && loans.length === 0 ? (
                 <tr>
                   <td colSpan={7} style={{ padding: '40px', textAlign: 'center' }}>
                     <Loading message="Memuat laporan..." />

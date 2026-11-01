@@ -43,9 +43,10 @@ export default function NotificationDropdown() {
     setLoading(true);
 
     try {
-      const [loanRes, mutRes] = await Promise.all([
+      const [loanRes, mutRes, notificationRes] = await Promise.all([
         api.get('/loans', { params: { per_page: 50 } }).catch(() => ({ data: [] })),
         api.get('/mutations', { params: { per_page: 50 } }).catch(() => ({ data: [] })),
+        api.get('/notifications').catch(() => ({ data: { notifications: [] } })),
       ]);
 
       const loanList = loanRes.data?.data || loanRes.data || [];
@@ -172,11 +173,53 @@ export default function NotificationDropdown() {
         }
       });
 
+      const serverItems = (notificationRes.data?.notifications || []).map((notification) => {
+        const data = notification.data || {};
+        const type = data.module === 'loans' ? 'peminjaman'
+          : data.module === 'mutations' ? 'mutasi'
+            : data.module === 'asset_deletion' ? 'penghapusan'
+              : data.module === 'bast' ? 'bast'
+                : data.module === 'inspections' ? 'pemeriksaan' : 'lainnya';
+        const link = type === 'peminjaman' ? '/peminjaman'
+          : type === 'mutasi' ? '/mutasi'
+            : type === 'penghapusan' ? '/penghapusan'
+              : type === 'bast' ? '/dokumen'
+                : type === 'pemeriksaan' ? '/pemeriksaan' : '';
+
+        return {
+          id: `db_${notification.id}`,
+          serverId: notification.id,
+          entityType: data.entity_type,
+          entityId: data.entity_id,
+          status: data.status,
+          type,
+          title: data.title || 'Notifikasi transaksi',
+          message: [data.actor, data.description].filter(Boolean).join(' — '),
+          badgeText: data.status || 'Transaksi',
+          badgeType: /ditolak|batal|perbaikan/i.test(data.title || '') ? 'danger' : 'success',
+          priority: 'high',
+          timestamp: notification.created_at,
+          link,
+          serverReadAt: notification.read_at,
+        };
+      });
+
+      const persistedTransactions = new Set(serverItems
+        .filter((item) => item.entityType && item.entityId && item.status)
+        .map((item) => `${item.entityType}_${item.entityId}_${item.status}`));
+      const fallbackItems = items.filter((item) => {
+        const match = item.id.match(/^(loan|mut)_(\d+)_(.+)$/);
+        if (!match) return true;
+        const entity = match[1] === 'loan' ? 'loan' : 'mutation';
+        return !persistedTransactions.has(`${entity}_${match[2]}_${match[3]}`);
+      });
+      items.splice(0, items.length, ...fallbackItems, ...serverItems);
+
       // Sort newest first
       items.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
       // Calculate unread count
-      const unread = items.filter((item) => !readIds.includes(item.id)).length;
+      const unread = items.filter((item) => !item.serverReadAt && !readIds.includes(item.id)).length;
       setNotifications(items);
       setUnreadCount(unread);
     } catch (err) {
@@ -188,15 +231,20 @@ export default function NotificationDropdown() {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll updates every 45 seconds so operator gets live alerts when admin approves
-    const interval = setInterval(fetchNotifications, 45000);
-    return () => clearInterval(interval);
+    // Poll transaction notices and refresh immediately when the user returns to the app.
+    const interval = setInterval(fetchNotifications, 20000);
+    window.addEventListener('focus', fetchNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchNotifications);
+    };
   }, [fetchNotifications]);
 
   const markAllAsRead = () => {
     const allIds = notifications.map((n) => n.id);
     localStorage.setItem('read_notifications', JSON.stringify(allIds));
     setUnreadCount(0);
+    api.post('/notifications/read-all').catch(() => {});
   };
 
   const handleItemClick = (item) => {
@@ -206,6 +254,7 @@ export default function NotificationDropdown() {
       readIds.push(item.id);
       localStorage.setItem('read_notifications', JSON.stringify(readIds));
       setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (item.serverId) api.post(`/notifications/${item.serverId}/read`).catch(() => {});
     }
     setIsOpen(false);
     if (item.link) {
@@ -227,7 +276,7 @@ export default function NotificationDropdown() {
       <button
         type="button"
         className="btn btn-secondary"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={() => { setIsOpen((prev) => !prev); fetchNotifications(); }}
         style={{
           position: 'relative',
           padding: '6px 10px',
@@ -421,7 +470,7 @@ export default function NotificationDropdown() {
               </div>
             ) : (
               filteredNotifications.map((item) => {
-                const isUnread = !readIds.includes(item.id);
+                const isUnread = !item.serverReadAt && !readIds.includes(item.id);
                 return (
                   <div
                     key={item.id}

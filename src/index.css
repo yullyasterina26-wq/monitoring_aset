@@ -1173,6 +1173,47 @@ table {
   background: var(--gray-50);
 }
 
+/* QR scanner camera scales to the available modal width and viewport height. */
+#qr-reader-container {
+  max-width: 100%;
+}
+
+#qr-reader-container video {
+  display: block;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  max-height: min(58dvh, 520px);
+  object-fit: contain;
+  margin-inline: auto;
+}
+
+#qr-reader-container canvas,
+#qr-reader-container img {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .qr-scanner-dialog {
+    width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+    margin: 0;
+  }
+
+  .qr-scanner-dialog .modal-header {
+    padding: 14px 16px;
+  }
+
+  .qr-scanner-body {
+    padding: 14px;
+    max-height: calc(100dvh - 132px) !important;
+  }
+
+  #qr-reader-container video {
+    max-height: 48dvh;
+  }
+}
+
 /* ===== ASSET DETAIL MODAL & INFO GRIDS ===== */
 .asset-detail-grid {
   display: grid;

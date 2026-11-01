@@ -10,6 +10,13 @@ import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import usePersistentDraft from '../../hooks/usePersistentDraft';
 import SearchableAssetSelect from './SearchableAssetSelect';
+import PhotoEvidenceInput from './PhotoEvidenceInput';
+
+const getDefaultReturnDate = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 7);
+  return date.toISOString().split('T')[0];
+};
 
 export default function MutationModal({
   isOpen,
@@ -25,8 +32,7 @@ export default function MutationModal({
   const [selectedAssetObj, setSelectedAssetObj] = useState(null);
 
   const [tanggalMutasi, setTanggalMutasi] = useState(todayStr);
-  const [tanggalRencanaKembali, setTanggalRencanaKembali] = useState('');
-  const [tanpaTanggalKembali, setTanpaTanggalKembali] = useState(true);
+  const [tanggalRencanaKembali, setTanggalRencanaKembali] = useState(getDefaultReturnDate);
   const [lokasiAsal, setLokasiAsal] = useState('');
   const [lokasiTujuan, setLokasiTujuan] = useState('');
   const [unitTujuan, setUnitTujuan] = useState('');
@@ -34,6 +40,8 @@ export default function MutationModal({
   const [petugas, setPetugas] = useState('');
   const [keterangan, setKeterangan] = useState('');
   const [dokumenFile, setDokumenFile] = useState(null);
+  const [fotoMutasi, setFotoMutasi] = useState(null);
+  const [fotoError, setFotoError] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -42,8 +50,7 @@ export default function MutationModal({
     setSelectedAssetId(draft.asetId || '');
     setSelectedAssetObj(draft.aset || null);
     setTanggalMutasi(draft.tanggalMutasi || todayStr);
-    setTanggalRencanaKembali(draft.tanggalRencanaKembali || '');
-    setTanpaTanggalKembali(draft.tanpaTanggalKembali !== undefined ? Boolean(draft.tanpaTanggalKembali) : true);
+    setTanggalRencanaKembali(draft.tanggalRencanaKembali || getDefaultReturnDate());
     setLokasiAsal(draft.lokasiAsal || '');
     setLokasiTujuan(draft.lokasiTujuan || '');
     setUnitTujuan(draft.unitTujuan || '');
@@ -52,9 +59,9 @@ export default function MutationModal({
     setKeterangan(draft.keterangan || '');
     setDokumenFile(null);
   }, [todayStr]);
-  const draftState = { asetId: selectedAssetId, aset: selectedAssetObj, tanggalMutasi, tanggalRencanaKembali, tanpaTanggalKembali, lokasiAsal, lokasiTujuan, unitTujuan, alasan, petugas, keterangan };
+  const draftState = { asetId: selectedAssetId, aset: selectedAssetObj, tanggalMutasi, tanggalRencanaKembali, lokasiAsal, lokasiTujuan, unitTujuan, alasan, petugas, keterangan };
   const { visible, clearDraft } = usePersistentDraft('draft:mutation', isOpen, draftState, restoreDraft);
-  const closeModal = () => { clearDraft(); onClose(); };
+  const closeModal = () => { clearDraft(); setFotoMutasi(null); setFotoError(''); onClose(); };
 
   useEffect(() => {
     if (isOpen) {
@@ -110,8 +117,8 @@ export default function MutationModal({
       setErrorMsg('Pilih aset yang akan dimutasi.');
       return;
     }
-    if (!tanpaTanggalKembali && !tanggalRencanaKembali) {
-      setErrorMsg('Harap isi rencana tanggal kembali atau centang tanpa tanggal kembali.');
+    if (!tanggalRencanaKembali) {
+      setErrorMsg('Harap isi rencana tanggal kembali.');
       return;
     }
     if (!lokasiTujuan.trim()) {
@@ -126,53 +133,36 @@ export default function MutationModal({
       setErrorMsg('Alasan pemindahan / mutasi wajib diisi.');
       return;
     }
+    if (fotoError) {
+      setErrorMsg(fotoError);
+      return;
+    }
+    if (!fotoMutasi) {
+      setErrorMsg('Foto bukti mutasi wajib diunggah.');
+      return;
+    }
 
     setLoading(true);
 
     try {
-      if (dokumenFile) {
-        // Send multipart/form-data
-        const formData = new FormData();
-        formData.append('tanggal_mutasi', tanggalMutasi);
-        formData.append('tanpa_tanggal_kembali', tanpaTanggalKembali ? '1' : '0');
-        if (!tanpaTanggalKembali && tanggalRencanaKembali) {
-          formData.append('tanggal_rencana_kembali', tanggalRencanaKembali);
-        }
-        formData.append('aset_id', selectedAssetId);
-        formData.append('lokasi_asal', lokasiAsal || selectedAssetObj?.lokasi || '-');
-        formData.append('lokasi_tujuan', lokasiTujuan.trim());
-        formData.append('unit_tujuan', unitTujuan.trim());
-        formData.append('alasan', alasan.trim());
-        formData.append('petugas', petugas || user?.name || 'Petugas Operasional');
-        if (keterangan.trim()) {
-          formData.append('keterangan', keterangan.trim());
-        }
-        formData.append('dokumen', dokumenFile);
+      const formData = new FormData();
+      formData.append('tanggal_mutasi', tanggalMutasi);
+      formData.append('tanggal_rencana_kembali', tanggalRencanaKembali);
+      formData.append('aset_id', selectedAssetId);
+      formData.append('lokasi_asal', lokasiAsal || selectedAssetObj?.lokasi || '-');
+      formData.append('lokasi_tujuan', lokasiTujuan.trim());
+      formData.append('unit_tujuan', unitTujuan.trim());
+      formData.append('alasan', alasan.trim());
+      formData.append('petugas', petugas || user?.name || 'Petugas Operasional');
+      if (keterangan.trim()) formData.append('keterangan', keterangan.trim());
+      if (dokumenFile) formData.append('dokumen', dokumenFile);
+      if (fotoMutasi) formData.append('foto_mutasi', fotoMutasi);
 
-        const res = await api.post('/mutations', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (onSuccess) onSuccess(res.data);
-      } else {
-        // Send application/json
-        const payload = {
-          tanggal_mutasi: tanggalMutasi,
-          tanpa_tanggal_kembali: tanpaTanggalKembali ? 1 : 0,
-          tanggal_rencana_kembali: tanpaTanggalKembali ? null : tanggalRencanaKembali,
-          aset_id: Number(selectedAssetId),
-          lokasi_asal: lokasiAsal || selectedAssetObj?.lokasi || '-',
-          lokasi_tujuan: lokasiTujuan.trim(),
-          unit_tujuan: unitTujuan.trim(),
-          alasan: alasan.trim(),
-          petugas: petugas || user?.name || 'Petugas Operasional',
-          keterangan: keterangan.trim() || null,
-        };
-
-        const res = await api.post('/mutations', payload);
-        if (onSuccess) onSuccess(res.data);
-      }
+      const res = await api.post('/mutations', formData);
+      if (onSuccess) onSuccess(res.data);
 
       clearDraft();
+      setFotoMutasi(null);
       onClose();
     } catch (err) {
       console.error('Mutation submission error:', err);
@@ -204,11 +194,12 @@ export default function MutationModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} onInvalidCapture={() => setErrorMsg('Lengkapi semua kolom yang bertanda wajib sebelum mengirim pengajuan.')}>
           <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
             {errorMsg && (
               <div
                 className="alert alert-danger"
+                role="alert"
                 style={{
                   fontSize: '0.85rem',
                   display: 'flex',
@@ -265,44 +256,18 @@ export default function MutationModal({
 
               <div className="form-group">
                 <label htmlFor="mutasi-tanggal-kembali" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  Rencana Tanggal Kembali {!tanpaTanggalKembali && <span style={{ color: '#ef4444' }}>*</span>}
+                  Rencana Tanggal Kembali <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   id="mutasi-tanggal-kembali"
                   type="date"
                   className="form-control"
-                  value={tanpaTanggalKembali ? '' : tanggalRencanaKembali}
+                  value={tanggalRencanaKembali}
                   onChange={(e) => setTanggalRencanaKembali(e.target.value)}
                   min={tanggalMutasi}
-                  disabled={tanpaTanggalKembali}
-                  required={!tanpaTanggalKembali}
-                  style={tanpaTanggalKembali ? { background: 'var(--gray-100)', cursor: 'not-allowed', color: 'var(--gray-500)' } : {}}
+                  required
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                  <input
-                    type="checkbox"
-                    id="mutasi-tanpa-tanggal-kembali"
-                    checked={tanpaTanggalKembali}
-                    onChange={(e) => {
-                      setTanpaTanggalKembali(e.target.checked);
-                      if (fieldErrors.tanggal_rencana_kembali) {
-                        setFieldErrors((prev) => {
-                          const copy = { ...prev };
-                          delete copy.tanggal_rencana_kembali;
-                          return copy;
-                        });
-                      }
-                    }}
-                    style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary-600)' }}
-                  />
-                  <label
-                    htmlFor="mutasi-tanpa-tanggal-kembali"
-                    style={{ fontSize: '0.8rem', color: 'var(--gray-700)', cursor: 'pointer', userSelect: 'none', margin: 0, fontWeight: 500 }}
-                  >
-                    Tanpa Tanggal Kembali (Mutasi Permanen)
-                  </label>
-                </div>
-                {fieldErrors.tanggal_rencana_kembali && !tanpaTanggalKembali && (
+                {fieldErrors.tanggal_rencana_kembali && (
                   <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
                     {fieldErrors.tanggal_rencana_kembali[0]}
                   </div>
@@ -453,6 +418,14 @@ export default function MutationModal({
                 </div>
               )}
             </div>
+
+            <PhotoEvidenceInput
+              label="Foto Bukti Mutasi"
+              required
+              value={fotoMutasi}
+              onChange={(file, error) => { setFotoMutasi(file); setFotoError(error); }}
+              error={fotoError || fieldErrors.foto_mutasi?.[0]}
+            />
 
             {/* Info Notice */}
             <div

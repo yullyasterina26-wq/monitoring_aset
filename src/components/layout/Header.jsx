@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   HiOutlineChevronDown,
   HiOutlineLogout,
@@ -6,6 +7,7 @@ import {
   HiOutlineServer,
   HiOutlineSun,
   HiOutlineMoon,
+  HiOutlineUserCircle,
 } from 'react-icons/hi';
 import { useAuth } from '../../contexts/AuthContext';
 import ServerConfigModal from '../ui/ServerConfigModal';
@@ -17,7 +19,8 @@ import NotificationDropdown from '../ui/NotificationDropdown';
 import { getApiBaseUrl } from '../../services/api';
 
 export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -214,6 +217,33 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
                     type="button"
                     onClick={() => {
                       setDropdownOpen(false);
+                      navigate('/profil');
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--gray-700)',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <HiOutlineUserCircle style={{ fontSize: '15px', color: 'var(--primary-600)' }} />
+                    <span>Profil Saya</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDropdownOpen(false);
                       setIsServerModalOpen(true);
                     }}
                     style={{
@@ -285,14 +315,14 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
       <AssetDetailModal
         asset={selectedAssetForDetail}
         onClose={() => setSelectedAssetForDetail(null)}
-        onPinjam={(asset) => {
+        onPinjam={!isAdmin ? (asset) => {
           setSelectedAssetForLoan(asset);
           setIsLoanModalOpen(true);
-        }}
-        onMutasi={(asset) => {
+        } : undefined}
+        onMutasi={!isAdmin ? (asset) => {
           setSelectedAssetForMutation(asset);
           setIsMutationModalOpen(true);
-        }}
+        } : undefined}
         onPemeriksaan={(asset) => {
           setSelectedAssetForInspection(asset);
           setIsInspectionModalOpen(true);
@@ -300,7 +330,7 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
       />
 
       <LoanModal
-        isOpen={isLoanModalOpen}
+        isOpen={!isAdmin && isLoanModalOpen}
         onClose={() => {
           setIsLoanModalOpen(false);
           setSelectedAssetForLoan(null);
@@ -309,7 +339,7 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
       />
 
       <MutationModal
-        isOpen={isMutationModalOpen}
+        isOpen={!isAdmin && isMutationModalOpen}
         onClose={() => {
           setIsMutationModalOpen(false);
           setSelectedAssetForMutation(null);

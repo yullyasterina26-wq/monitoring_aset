@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
   HiOutlineUserCircle,
   HiOutlineCog,
@@ -24,6 +25,7 @@ import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   // Stats state
   const [dashboardData, setDashboardData] = useState(null);
@@ -308,10 +310,10 @@ export default function DashboardPage() {
       <AssetTable
         assets={availableAssets}
         loading={assetsLoading}
-        onSelectAsset={(asset) => {
+        onSelectAsset={!isAdmin ? (asset) => {
           setSelectedAssetForLoan(asset);
           setIsLoanModalOpen(true);
-        }}
+        } : undefined}
         onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
       />
 
@@ -319,14 +321,14 @@ export default function DashboardPage() {
         isOpen={isQrScannerOpen}
         onClose={() => setIsQrScannerOpen(false)}
         onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
-        onSelectAssetForLoan={(asset) => {
+        onSelectAssetForLoan={!isAdmin ? (asset) => {
           setSelectedAssetForLoan(asset);
           setIsLoanModalOpen(true);
-        }}
-        onSelectAssetForMutation={(asset) => {
+        } : undefined}
+        onSelectAssetForMutation={!isAdmin ? (asset) => {
           setSelectedAssetForMutation(asset);
           setIsMutationModalOpen(true);
-        }}
+        } : undefined}
         onSelectAssetForInspection={(asset) => {
           setSelectedAssetForInspection(asset);
           setIsInspectionModalOpen(true);
@@ -380,7 +382,7 @@ export default function DashboardPage() {
 
       {/* Modal Pengajuan Peminjaman */}
       <LoanModal
-        isOpen={isLoanModalOpen}
+        isOpen={!isAdmin && isLoanModalOpen}
         onClose={() => {
           setIsLoanModalOpen(false);
           setSelectedAssetForLoan(null);
@@ -391,7 +393,7 @@ export default function DashboardPage() {
 
       {/* Modal Pengajuan Mutasi */}
       <MutationModal
-        isOpen={isMutationModalOpen}
+        isOpen={!isAdmin && isMutationModalOpen}
         onClose={() => {
           setIsMutationModalOpen(false);
           setSelectedAssetForMutation(null);
@@ -415,14 +417,14 @@ export default function DashboardPage() {
       <AssetDetailModal
         asset={selectedAssetForDetail}
         onClose={() => setSelectedAssetForDetail(null)}
-        onPinjam={(asset) => {
+        onPinjam={!isAdmin ? (asset) => {
           setSelectedAssetForLoan(asset);
           setIsLoanModalOpen(true);
-        }}
-        onMutasi={(asset) => {
+        } : undefined}
+        onMutasi={!isAdmin ? (asset) => {
           setSelectedAssetForMutation(asset);
           setIsMutationModalOpen(true);
-        }}
+        } : undefined}
         onPemeriksaan={(asset) => {
           setSelectedAssetForInspection(asset);
           setIsInspectionModalOpen(true);

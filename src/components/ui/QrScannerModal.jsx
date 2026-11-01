@@ -10,7 +10,7 @@ import {
   HiOutlineSwitchHorizontal,
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import api from '../../services/api';
 import { Badge, kondisiBadge } from './Shared';
 import useDebouncedValue from '../../hooks/useDebouncedValue';
@@ -35,19 +35,29 @@ export default function QrScannerModal({
 
   const html5QrCodeRef = useRef(null);
   const isScanningRef = useRef(false);
+  const startInProgressRef = useRef(false);
+  const scanHandledRef = useRef(false);
+  const stopRequestedRef = useRef(false);
 
   // Stop camera helper
   const stopCamera = async () => {
+    if (startInProgressRef.current) stopRequestedRef.current = true;
     if (html5QrCodeRef.current && isScanningRef.current) {
       try {
         await html5QrCodeRef.current.stop();
-        html5QrCodeRef.current.clear();
       } catch (err) {
         console.warn('Error stopping QR scanner:', err);
       } finally {
         isScanningRef.current = false;
         setCameraActive(false);
+        try {
+          html5QrCodeRef.current.clear();
+        } catch {
+          // The library may already have cleared the reader during a failed start.
+        }
       }
+    } else {
+      setCameraActive(false);
     }
   };
 
@@ -118,32 +128,47 @@ export default function QrScannerModal({
 
   // Start camera scanning ONLY when user presses button
   const startCamera = async () => {
+    if (startInProgressRef.current || isScanningRef.current) return;
+    startInProgressRef.current = true;
+    stopRequestedRef.current = false;
+    scanHandledRef.current = false;
     setCameraError('');
     setLookupResult(null);
     setLookupError('');
+    // html5-qrcode measures the reader element while attaching the video.
+    // Keep the element visible and let the browser lay it out before start().
+    setCameraActive(true);
 
     try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
       // Create reader instance if not exists
       if (!html5QrCodeRef.current) {
         html5QrCodeRef.current = new Html5Qrcode('qr-reader-container');
       }
 
-      setCameraActive(true);
-      isScanningRef.current = true;
-
       const config = {
-        fps: 10,
-        qrbox: { width: 240, height: 240 },
+        fps: 15,
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
+          return { width: Math.min(edge, 320), height: Math.min(edge, 320) };
+        },
         aspectRatio: 1.0,
+        videoConstraints: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       };
 
       await html5QrCodeRef.current.start(
-        { facingMode: 'environment' }, // Back camera
+        { facingMode: 'environment' },
         config,
         async (decodedText) => {
           // Success callback: prevent repeated scans
-          if (isScanningRef.current) {
-            isScanningRef.current = false;
+          if (isScanningRef.current && !scanHandledRef.current) {
+            scanHandledRef.current = true;
             await stopCamera();
             lookupAssetByCode(decodedText);
           }
@@ -152,6 +177,8 @@ export default function QrScannerModal({
           // Frame parse error - ignore standard noise
         }
       );
+      isScanningRef.current = true;
+      if (stopRequestedRef.current) await stopCamera();
     } catch (err) {
       console.error('Camera start error:', err);
       setCameraActive(false);
@@ -164,6 +191,8 @@ export default function QrScannerModal({
       } else {
         setCameraError(`Gagal membuka kamera: ${msg}. Pastikan URL dibuka lewat HTTPS atau localhost untuk akses kamera.`);
       }
+    } finally {
+      startInProgressRef.current = false;
     }
   };
 
@@ -187,9 +216,9 @@ export default function QrScannerModal({
   return (
     <div className="modal-backdrop" onClick={handleClose} style={{ zIndex: 1100 }}>
       <div
-        className="modal-dialog"
+        className="modal-dialog qr-scanner-dialog"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '540px', width: '92%' }}
+        style={{ maxWidth: '560px', width: 'min(560px, 94vw)' }}
       >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -201,7 +230,7 @@ export default function QrScannerModal({
           </button>
         </div>
 
-        <div className="modal-body" style={{ maxHeight: '76vh', overflowY: 'auto' }}>
+        <div className="modal-body qr-scanner-body" style={{ maxHeight: 'calc(100dvh - 150px)', overflowY: 'auto' }}>
           {/* Tab Selection: Kamera vs Manual */}
           <div
             style={{
@@ -306,7 +335,7 @@ export default function QrScannerModal({
                     type="button"
                     className="btn btn-primary"
                     onClick={startCamera}
-                    style={{ padding: '10px 24px', fontSize: '0.9rem', fontWeight: 600 }}
+                    style={{ padding: '10px 24px', fontSize: '0.9rem', fontWeight: 600, maxWidth: '100%' }}
                     id="btn-start-camera"
                   >
                     Mulai Pindai Kamera
@@ -341,11 +370,13 @@ export default function QrScannerModal({
                 id="qr-reader-container"
                 style={{
                   width: '100%',
+                  maxWidth: '100%',
                   borderRadius: '12px',
                   overflow: 'hidden',
                   display: cameraActive ? 'block' : 'none',
                   background: '#000000',
-                  minHeight: '260px',
+                  minHeight: 'clamp(220px, 48dvh, 440px)',
+                  marginInline: 'auto',
                 }}
               />
 

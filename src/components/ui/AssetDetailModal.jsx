@@ -9,8 +9,9 @@ import {
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
 import { Badge, kondisiBadge, formatDateTime } from './Shared';
+import ImagePreview from './ImagePreview';
 import { useAuth } from '../../contexts/AuthContext';
-import api from '../../services/api';
+import api, { getStorageUrl } from '../../services/api';
 
 export default function AssetDetailModal({
   asset,
@@ -51,7 +52,7 @@ export default function AssetDetailModal({
       <div
         className="modal-dialog"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '580px', width: '92%' }}
+        style={{ maxWidth: '580px', width: '92%', maxHeight: 'calc(100dvh - 32px)' }}
       >
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -114,7 +115,7 @@ export default function AssetDetailModal({
           </button>
         </div>
 
-        <div className="modal-body" style={{ maxHeight: '68vh', overflowY: 'auto' }}>
+        <div className="modal-body" style={{ flex: '1 1 auto', minHeight: 0, maxHeight: 'calc(100dvh - 190px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {/* TAB DETAIL */}
           {activeTab === 'detail' && (
             <>
@@ -135,6 +136,17 @@ export default function AssetDetailModal({
                   <Badge type="info">{asset.kategori?.nama_kategori || asset.kategori || 'Perangkat'}</Badge>
                 </div>
               </div>
+
+              {(asset.foto || asset.foto_aset || asset.gambar) && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ color: 'var(--gray-500)', fontSize: '0.75rem', marginBottom: '6px' }}>Foto Aset</div>
+                  <ImagePreview
+                    src={getStorageUrl(asset.foto || asset.foto_aset || asset.gambar)}
+                    alt={`Foto ${asset.nama_aset || 'aset'}`}
+                    imageStyle={{ display: 'block', width: '100%', maxHeight: '280px', objectFit: 'contain', borderRadius: '8px', background: 'var(--gray-50)' }}
+                  />
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', fontSize: '0.85rem' }}>
                 <div>
@@ -256,6 +268,9 @@ export default function AssetDetailModal({
                       <p style={{ margin: '2px 0', color: 'var(--gray-700)' }}>
                         {hist.keterangan || hist.catatan || '-'}
                       </p>
+                      {hist.foto && (
+                        <ImagePreview src={getStorageUrl(hist.foto)} alt="Foto bukti aktivitas aset" imageStyle={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain', borderRadius: '6px', marginTop: '6px' }} />
+                      )}
                       {hist.petugas && (
                         <div style={{ fontSize: '0.72rem', color: 'var(--gray-500)', marginTop: '4px' }}>
                           Petugas: <strong>{hist.petugas}</strong>

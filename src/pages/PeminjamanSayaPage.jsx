@@ -8,10 +8,37 @@ import {
   HiOutlineX,
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
+import { useAuth } from '../contexts/AuthContext';
 import { Loading, Badge, Pagination, formatDate, formatDateTime } from '../components/ui/Shared';
 import LoanModal from '../components/ui/LoanModal';
+import ImagePreview from '../components/ui/ImagePreview';
 import api from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
+
+function ProtectedLoanPhoto({ loan }) {
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+    api.get(`/loans/${loan.id}/photo`, { responseType: 'blob' })
+      .then(({ data }) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(data);
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [loan.id]);
+
+  if (failed) return <div style={{ color: '#64748b', fontSize: '12px', marginTop: '5px' }}>Foto tidak dapat dimuat.</div>;
+  if (!photoUrl) return <div style={{ color: '#64748b', fontSize: '12px', marginTop: '5px' }}>Memuat foto...</div>;
+  return <ImagePreview src={photoUrl} alt="Foto kondisi aset saat dipinjam" imageStyle={{ maxWidth: '100%', maxHeight: '280px', objectFit: 'contain', borderRadius: '6px', border: '1px solid #cbd5e1' }} buttonStyle={{ display: 'block', marginTop: '5px' }} />;
+}
 
 const returnDateMonitor = (loan) => {
   if (!loan.tanggal_rencana_kembali) return { label: 'Tanpa Tanggal Kembali', overdue: false };
@@ -29,6 +56,7 @@ const returnDateMonitor = (loan) => {
 };
 
 export default function PeminjamanSayaPage() {
+  const { isAdmin } = useAuth();
   const [loans, setLoans] = useState([]);
   const [allLoans, setAllLoans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -80,25 +108,6 @@ export default function PeminjamanSayaPage() {
         console.error('Error fetching loans:', err);
       })
       .finally(() => setLoading(false));
-  };
-
-  const openLoanLetter = async () => {
-    const letter = selectedLoan?.surat_balasan;
-    if (!letter?.tersedia || !letter.bast_id) return;
-    setLetterLoading(true);
-    try {
-      const response = await api.get(`/operasional/dokumen/bast/${letter.bast_id}/final`, { responseType: 'blob' });
-      const url = URL.createObjectURL(response.data);
-      setLetterPreviewUrl(previous => {
-        if (previous) URL.revokeObjectURL(previous);
-        return url;
-      });
-    } catch (error) {
-      console.error('Gagal membuka surat balasan:', error);
-      window.alert('Surat balasan tidak dapat dibuka. Muat ulang pengajuan dan coba lagi.');
-    } finally {
-      setLetterLoading(false);
-    }
   };
 
   const openBastDocument = async () => {
@@ -153,7 +162,6 @@ export default function PeminjamanSayaPage() {
   const countMenunggu = allLoans.filter(l => l.status === 'Menunggu').length;
   const countDisetujui = allLoans.filter(l => l.status === 'Diproses').length;
   const countSedangDipinjam = allLoans.filter(l => l.status === 'Dipinjam').length;
-  const countTanpaTanggalKembali = allLoans.filter(l => l.status === 'Dipinjam' && !l.tanggal_rencana_kembali).length;
   const countSelesai = allLoans.filter(l => l.status === 'Selesai').length;
 
   const getStatusBadge = (status, statusBast) => {
@@ -207,7 +215,7 @@ export default function PeminjamanSayaPage() {
           </span>
         </div>
 
-        <button
+        {!isAdmin && <button
           type="button"
           onClick={() => setIsLoanModalOpen(true)}
           style={{
@@ -226,7 +234,7 @@ export default function PeminjamanSayaPage() {
           id="btn-tambah-peminjaman"
         >
           <HiOutlinePlus /> Tambah Peminjaman
-        </button>
+        </button>}
       </div>
 
       {/* 5 Stat Cards in a row matching Screenshot 2 */}
@@ -286,23 +294,7 @@ export default function PeminjamanSayaPage() {
           <div style={{ fontSize: '11px', color: '#94a3b8' }}>Pantau jadwal pengembalian pada daftar</div>
         </div>
 
-        {/* Card 4: Loans without a scheduled return date */}
-        <div
-          style={{
-            background: '#ffffff',
-            borderRadius: '8px',
-            border: '1px solid #eef2f6',
-            borderTop: '3px solid #64748b',
-            padding: '14px 16px',
-            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
-          }}
-        >
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Tanpa Tanggal Kembali</div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#64748b', margin: '4px 0 2px' }}>{countTanpaTanggalKembali}</div>
-          <div style={{ fontSize: '11px', color: '#94a3b8' }}>Mengikuti pilihan admin</div>
-        </div>
-
-        {/* Card 5: Selesai */}
+        {/* Card 4: Selesai */}
         <div
           style={{
             background: '#ffffff',
@@ -426,7 +418,7 @@ export default function PeminjamanSayaPage() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && loans.length === 0 ? (
                 <tr>
                   <td colSpan={8} style={{ padding: '40px', textAlign: 'center' }}>
                     <Loading message="Memuat data peminjaman..." />
@@ -562,6 +554,12 @@ export default function PeminjamanSayaPage() {
                   {selectedLoan.keperluan}
                 </div>
               </div>
+              {selectedLoan.foto_peminjaman && (
+                <div style={{ marginTop: '12px' }}>
+                  <span style={{ color: '#64748b', fontSize: '11px' }}>Foto Kondisi Saat Dipinjam:</span>
+                  <ProtectedLoanPhoto loan={selectedLoan} />
+                </div>
+              )}
               {selectedLoan.dokumen_bast?.tersedia && (
                 <div style={{ marginTop: '14px', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
                   <div style={{ fontWeight: 700, marginBottom: '4px' }}>Dokumen BAST</div>
@@ -569,22 +567,6 @@ export default function PeminjamanSayaPage() {
                   <button type="button" className="btn btn-primary" onClick={openBastDocument} disabled={letterLoading}>
                     <HiOutlineEye /> {letterLoading ? 'Membuka dokumen...' : 'Lihat Dokumen BAST'}
                   </button>
-                </div>
-              )}
-              {selectedLoan.surat_balasan && (
-                <div style={{ marginTop: '14px', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
-                  <div style={{ fontWeight: 700, marginBottom: '4px' }}>Surat balasan operasional</div>
-                  <div style={{ color: '#64748b', marginBottom: '8px' }}>
-                    Diterima dari {selectedLoan.surat_balasan.pengirim || 'Operasional'}
-                    {selectedLoan.surat_balasan.received_at ? ` · ${formatDateTime(selectedLoan.surat_balasan.received_at)}` : ''}
-                  </div>
-                  {selectedLoan.surat_balasan.tersedia ? (
-                    <button type="button" className="btn btn-primary" onClick={openLoanLetter} disabled={letterLoading}>
-                      <HiOutlineEye /> {letterLoading ? 'Membuka surat...' : 'Lihat Surat'}
-                    </button>
-                  ) : (
-                    <Badge type="warning">PDF surat belum tersedia</Badge>
-                  )}
                 </div>
               )}
               {letterPreviewUrl && (
@@ -604,7 +586,7 @@ export default function PeminjamanSayaPage() {
 
       {/* Loan Modal */}
       <LoanModal
-        isOpen={isLoanModalOpen}
+        isOpen={!isAdmin && isLoanModalOpen}
         onClose={() => setIsLoanModalOpen(false)}
         onSuccess={() => {
           setSuccessToast('Pengajuan peminjaman berhasil dibuat!');

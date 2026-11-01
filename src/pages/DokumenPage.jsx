@@ -238,7 +238,7 @@ export default function DokumenPage() {
           </div>
 
           <div className="card-body" style={{ padding: 0 }}>
-            {loading ? (
+          {loading && dataList.length === 0 ? (
               <Loading message="Mengambil dokumen..." />
             ) : dataList.length === 0 ? (
               <EmptyState message="Tidak ada dokumen yang ditemukan." />

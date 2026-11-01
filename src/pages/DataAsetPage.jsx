@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import {
   HiOutlineSearch,
   HiOutlineRefresh,
@@ -18,6 +19,7 @@ import api from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DataAsetPage() {
+  const { isAdmin } = useAuth();
   const [assets, setAssets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,8 @@ export default function DataAsetPage() {
       page: pageNum,
       search: debouncedSearch || undefined,
       kategori_id: kategoriId || undefined,
-      kondisi: kondisi || undefined,
+      // Operator hanya boleh melihat aset berkondisi baik untuk peminjaman.
+      kondisi: isAdmin ? (kondisi || undefined) : 'Baik',
       per_page: 10,
     };
 
@@ -96,7 +99,7 @@ export default function DataAsetPage() {
 
   useEffect(() => {
     fetchAssets(page);
-  }, [page, kategoriId, kondisi, debouncedSearch]);
+  }, [page, kategoriId, kondisi, debouncedSearch, isAdmin]);
 
   const handleReset = () => {
     setSearch('');
@@ -108,6 +111,15 @@ export default function DataAsetPage() {
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 5000);
+  };
+
+  const openLoanForAsset = (asset) => {
+    if (asset?.kondisi !== 'Baik') {
+      showToast('Aset tidak dapat dipinjam karena kondisinya bukan Baik.');
+      return;
+    }
+    setSelectedAssetForLoan(asset);
+    setIsLoanModalOpen(true);
   };
 
   return (
@@ -217,8 +229,8 @@ export default function DataAsetPage() {
             </select>
           </div>
 
-          {/* Kondisi Filter */}
-          <div style={{ width: '160px' }}>
+          {/* Admin dapat meninjau seluruh kondisi; operasional hanya melihat aset baik. */}
+          {isAdmin && <div style={{ width: '160px' }}>
             <select
               className="form-control"
               value={kondisi}
@@ -232,7 +244,7 @@ export default function DataAsetPage() {
               <option value="Baik">Baik</option>
               <option value="Rusak">Rusak</option>
             </select>
-          </div>
+          </div>}
 
           {(search || kategoriId || kondisi) && (
             <button
@@ -250,7 +262,7 @@ export default function DataAsetPage() {
 
       {/* Assets Table */}
       <div className="card" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--gray-200)' }}>
-        {loading ? (
+        {loading && assets.length === 0 ? (
           <div style={{ padding: '3.5rem' }}>
             <Loading text="Memuat daftar aset..." />
           </div>
@@ -329,15 +341,27 @@ export default function DataAsetPage() {
                         >
                           Detail
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => setQrPrintAsset(item)}
-                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                          title="Lihat Kode QR"
-                        >
-                          <HiOutlineQrcode />
-                        </button>
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setQrPrintAsset(item)}
+                            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            title="Lihat Kode QR"
+                          >
+                            <HiOutlineQrcode />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => openLoanForAsset(item)}
+                            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                            title="Ajukan peminjaman aset"
+                          >
+                            Pinjam
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -410,41 +434,23 @@ export default function DataAsetPage() {
         isOpen={isQrScannerOpen}
         onClose={() => setIsQrScannerOpen(false)}
         onViewDetail={(asset) => setSelectedAssetForDetail(asset)}
-        onSelectAssetForLoan={(asset) => {
-          setSelectedAssetForLoan(asset);
-          setIsLoanModalOpen(true);
-        }}
-        onSelectAssetForMutation={(asset) => {
-          setSelectedAssetForMutation(asset);
-          setIsMutationModalOpen(true);
-        }}
-        onSelectAssetForInspection={(asset) => {
-          setSelectedAssetForInspection(asset);
-          setIsInspectionModalOpen(true);
-        }}
+        onSelectAssetForLoan={!isAdmin ? (asset) => {
+          openLoanForAsset(asset);
+        } : undefined}
       />
 
       {/* Detail Modal */}
       <AssetDetailModal
         asset={selectedAssetForDetail}
         onClose={() => setSelectedAssetForDetail(null)}
-        onPinjam={(asset) => {
-          setSelectedAssetForLoan(asset);
-          setIsLoanModalOpen(true);
-        }}
-        onMutasi={(asset) => {
-          setSelectedAssetForMutation(asset);
-          setIsMutationModalOpen(true);
-        }}
-        onPemeriksaan={(asset) => {
-          setSelectedAssetForInspection(asset);
-          setIsInspectionModalOpen(true);
-        }}
+        onPinjam={!isAdmin ? (asset) => {
+          openLoanForAsset(asset);
+        } : undefined}
       />
 
       {/* Loan Modal */}
       <LoanModal
-        isOpen={isLoanModalOpen}
+        isOpen={!isAdmin && isLoanModalOpen}
         onClose={() => {
           setIsLoanModalOpen(false);
           setSelectedAssetForLoan(null);
@@ -458,7 +464,7 @@ export default function DataAsetPage() {
 
       {/* Mutation Modal */}
       <MutationModal
-        isOpen={isMutationModalOpen}
+        isOpen={!isAdmin && isMutationModalOpen}
         onClose={() => {
           setIsMutationModalOpen(false);
           setSelectedAssetForMutation(null);
