@@ -16,7 +16,8 @@ import { useAuth } from '../../contexts/AuthContext';
 
 export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
   const location = useLocation();
-  const { logout, user } = useAuth();
+  const { logout, user, isOperator, canApprove, canManageAssets, roleLabel } = useAuth();
+  const canUseOperationalPages = isOperator || canApprove;
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/';
@@ -76,7 +77,7 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
             <span className="nav-text">Data Aset</span>
           </NavLink>
 
-          <NavLink
+          {canUseOperationalPages && <NavLink
             to="/peminjaman"
             className={`nav-item ${isActive('/peminjaman') ? 'active' : ''}`}
             onClick={onCloseMobile}
@@ -85,9 +86,9 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
           >
             <span className="nav-icon"><MdHandshake style={{ fontSize: '18px' }} /></span>
             <span className="nav-text">Peminjaman</span>
-          </NavLink>
+          </NavLink>}
 
-          <NavLink
+          {canUseOperationalPages && <NavLink
             to="/mutasi"
             className={`nav-item ${isActive('/mutasi') ? 'active' : ''}`}
             onClick={onCloseMobile}
@@ -96,9 +97,9 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
           >
             <span className="nav-icon"><HiOutlineSwitchHorizontal /></span>
             <span className="nav-text">Mutasi Aset</span>
-          </NavLink>
+          </NavLink>}
 
-          <NavLink
+          {canUseOperationalPages && <NavLink
             to="/pemeriksaan"
             className={`nav-item ${isActive('/pemeriksaan') ? 'active' : ''}`}
             onClick={onCloseMobile}
@@ -107,9 +108,9 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
           >
             <span className="nav-icon"><HiOutlineClipboardCheck /></span>
             <span className="nav-text">Pemeriksaan Fisik</span>
-          </NavLink>
+          </NavLink>}
 
-          <NavLink
+          {(canUseOperationalPages || canManageAssets) && <NavLink
             to="/penghapusan"
             className={`nav-item ${isActive('/penghapusan') ? 'active' : ''}`}
             onClick={onCloseMobile}
@@ -118,8 +119,20 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
           >
             <span className="nav-icon"><HiOutlineTrash /></span>
             <span className="nav-text">Penghapusan Aset</span>
-          </NavLink>
+          </NavLink>}
 
+          {canApprove && <NavLink
+            to="/dokumen"
+            className={`nav-item ${isActive('/dokumen') ? 'active' : ''}`}
+            onClick={onCloseMobile}
+            title="Dokumen BAST"
+            id="nav-dokumen"
+          >
+            <span className="nav-icon"><HiOutlineDocumentText /></span>
+            <span className="nav-text">Dokumen BAST</span>
+          </NavLink>}
+
+          {canUseOperationalPages && <>
           {/* Bagian AKTIVITAS & LAPORAN */}
           <div className="nav-section-title">LOG &amp; LAPORAN</div>
           <NavLink
@@ -143,6 +156,7 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
             <span className="nav-icon"><HiOutlineDocumentText /></span>
             <span className="nav-text">Laporan</span>
           </NavLink>
+          </>}
 
           <div className="nav-section-title">AKUN</div>
           <NavLink
@@ -164,7 +178,7 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
               {user?.name || 'Operator'}
             </div>
             <div style={{ textTransform: 'capitalize', color: 'var(--primary-600)', fontSize: '0.7rem' }}>
-              Role: {user?.role || 'operator'}
+              Role: {roleLabel}
             </div>
           </div>
 

@@ -19,7 +19,7 @@ import NotificationDropdown from '../ui/NotificationDropdown';
 import { getApiBaseUrl } from '../../services/api';
 
 export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, roleLabel } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -168,7 +168,7 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
                   {user?.name || 'Operator'}
                 </div>
                 <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>
-                  {user?.role || 'operator'}
+                  {roleLabel}
                 </div>
               </div>
 
@@ -191,10 +191,10 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
                   top: 'calc(100% + 8px)',
                   right: 0,
                   width: '220px',
-                  background: '#ffffff',
+                  background: 'var(--bg-card)',
                   borderRadius: '8px',
-                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
-                  border: '1px solid #e2e8f0',
+                  boxShadow: 'var(--shadow-lg)',
+                  border: '1px solid var(--gray-200)',
                   padding: '6px 0',
                   zIndex: 1000,
                 }}
@@ -205,7 +205,7 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
                     {user?.name || 'Operator'}
                   </p>
                   <p style={{ margin: '1px 0 0', fontSize: '11px', color: '#2563eb', fontWeight: 600, textTransform: 'capitalize' }}>
-                    Role: {user?.role || 'operator'}
+                    Role: {roleLabel}
                   </p>
                   <p style={{ margin: '1px 0 0', fontSize: '11px', color: '#94a3b8' }}>
                     {user?.email || '-'}

@@ -4,8 +4,6 @@ import {
   HiOutlineSearch,
   HiOutlineRefresh,
   HiOutlineInbox,
-  HiOutlineCube,
-  HiOutlineUser,
 } from 'react-icons/hi';
 import { Loading, Pagination, formatDateTime } from '../components/ui/Shared';
 import api from '../services/api';
@@ -64,12 +62,8 @@ export default function AktivitasPage() {
     setPage(1);
   };
 
-  const activityName = (activity) => activity.action || 'Aktivitas';
+  const activityName = (activity) => activity.action_label || activity.action || 'Aktivitas';
   const activityDescription = (activity) => activity.description || '-';
-  const activityTypeLabel = (activity) => activity.activity_type === 'operasional' ? 'Operasional' : 'Akun';
-  const activityTypeColor = (activity) => activity.activity_type === 'operasional'
-    ? { color: '#075985', background: '#e0f2fe', border: '#bae6fd' }
-    : { color: '#6b21a8', background: '#f3e8ff', border: '#e9d5ff' };
 
   return (
     <main className="main-content page-enter" style={{ padding: '24px 28px', maxWidth: '1440px' }}>
@@ -104,14 +98,6 @@ export default function AktivitasPage() {
             </button>
           )}
         </form>
-        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', marginTop: '12px', fontSize: '0.78rem', color: 'var(--gray-600)' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <HiOutlineCube style={{ color: '#0284c7' }} /> Operasional
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <HiOutlineUser style={{ color: '#9333ea' }} /> Akun
-          </span>
-        </div>
       </div>
 
       <div className="card" style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--gray-200)' }}>
@@ -133,22 +119,18 @@ export default function AktivitasPage() {
                 <tr>
                   <th style={{ width: '52px', textAlign: 'center' }}>No</th>
                   <th style={{ minWidth: '145px' }}>Waktu</th>
-                  <th style={{ minWidth: '125px' }}>Jenis</th>
                   <th style={{ minWidth: '190px' }}>Aktivitas</th>
-                  <th style={{ minWidth: '180px' }}>Aset Terkait</th>
                   <th>Detail</th>
                   <th style={{ minWidth: '125px' }}>IP / Klien</th>
                 </tr>
               </thead>
               <tbody>
                 {activities.map((activity, index) => {
-                  const operational = activity.activity_type === 'operasional';
-                  const typeColor = activityTypeColor(activity);
                   return (
                     <tr
                       key={`${activity.activity_type}-${activity.source_id}`}
                       onClick={() => setSelectedActivity(activity)}
-                      style={{ cursor: 'pointer', background: operational ? 'rgba(224, 242, 254, 0.28)' : 'rgba(243, 232, 255, 0.2)' }}
+                      style={{ cursor: 'pointer' }}
                       title="Klik untuk melihat detail aktivitas"
                     >
                       <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
@@ -157,21 +139,7 @@ export default function AktivitasPage() {
                       <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
                         {activity.created_at ? formatDateTime(activity.created_at) : '-'}
                       </td>
-                      <td>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 9px', borderRadius: '999px', border: `1px solid ${typeColor.border}`, color: typeColor.color, background: typeColor.background, fontSize: '0.75rem', fontWeight: 700 }}>
-                          {operational ? <HiOutlineCube /> : <HiOutlineUser />}
-                          {activityTypeLabel(activity)}
-                        </span>
-                      </td>
                       <td style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--gray-800)' }}>{activityName(activity)}</td>
-                      <td>
-                        {activity.asset_name ? (
-                          <>
-                            <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '0.85rem' }}>{activity.asset_name}</div>
-                            {activity.asset_code && <div style={{ fontSize: '0.75rem', color: 'var(--primary-700)', fontWeight: 600 }}>{activity.asset_code}</div>}
-                          </>
-                        ) : <span style={{ color: 'var(--gray-400)' }}>-</span>}
-                      </td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--gray-700)', maxWidth: '420px' }}>{activityDescription(activity)}</td>
                       <td style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{activity.ip_address || '-'}</td>
                     </tr>
@@ -194,15 +162,13 @@ export default function AktivitasPage() {
           <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px', width: '92%' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {selectedActivity.activity_type === 'operasional' ? <HiOutlineCube style={{ color: '#0284c7' }} /> : <HiOutlineUser style={{ color: '#9333ea' }} />}
-                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Aktivitas {activityTypeLabel(selectedActivity)}</h3>
+                <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Detail Aktivitas</h3>
               </div>
               <button className="modal-close" onClick={() => setSelectedActivity(null)} aria-label="Tutup"><span aria-hidden="true">×</span></button>
             </div>
             <div className="modal-body" style={{ display: 'grid', gap: '12px', fontSize: '0.9rem' }}>
               <div><strong>Aktivitas</strong><div>{activityName(selectedActivity)}</div></div>
               <div><strong>Waktu</strong><div>{selectedActivity.created_at ? formatDateTime(selectedActivity.created_at) : '-'}</div></div>
-              {selectedActivity.asset_name && <div><strong>Aset</strong><div>{selectedActivity.asset_name}{selectedActivity.asset_code ? ` (${selectedActivity.asset_code})` : ''}</div></div>}
               {selectedActivity.module && <div><strong>Modul</strong><div>{selectedActivity.module}</div></div>}
               <div><strong>Keterangan</strong><div>{activityDescription(selectedActivity)}</div></div>
               {selectedActivity.ip_address && <div><strong>Alamat IP / Klien</strong><div>{selectedActivity.ip_address}</div></div>}

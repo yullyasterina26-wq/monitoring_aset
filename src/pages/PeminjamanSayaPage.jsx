@@ -42,7 +42,7 @@ function ProtectedLoanPhoto({ loan }) {
 
 const returnDateMonitor = (loan) => {
   if (!loan.tanggal_rencana_kembali) return { label: 'Tanpa Tanggal Kembali', overdue: false };
-  if (loan.status !== 'Dipinjam') return null;
+  if (!['Dipinjam', 'Terlambat'].includes(loan.status)) return null;
 
   const [year, month, day] = loan.tanggal_rencana_kembali.slice(0, 10).split('-').map(Number);
   const due = new Date(year, month - 1, day);
@@ -55,8 +55,20 @@ const returnDateMonitor = (loan) => {
   return { label: `Jatuh tempo dalam ${days} hari`, overdue: false };
 };
 
+const dateAfter = (dateValue) => {
+  const [year, month, day] = dateValue.slice(0, 10).split('-').map(Number);
+  const date = new Date(year, month - 1, day + 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const localTomorrow = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+};
+
 export default function PeminjamanSayaPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [loans, setLoans] = useState([]);
   const [allLoans, setAllLoans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +84,10 @@ export default function PeminjamanSayaPage() {
   const [letterPreviewUrl, setLetterPreviewUrl] = useState('');
   const [letterLoading, setLetterLoading] = useState(false);
   const [successToast, setSuccessToast] = useState('');
+  const [extensionDate, setExtensionDate] = useState('');
+  const [extensionReason, setExtensionReason] = useState('');
+  const [extensionError, setExtensionError] = useState('');
+  const [extensionSubmitting, setExtensionSubmitting] = useState(false);
 
   const fetchLoans = (pageNum = 1) => {
     setLoading(true);
@@ -131,10 +147,52 @@ export default function PeminjamanSayaPage() {
 
   const closeLoanDetail = () => {
     setSelectedLoan(null);
+    setExtensionDate('');
+    setExtensionReason('');
+    setExtensionError('');
     setLetterPreviewUrl(previous => {
       if (previous) URL.revokeObjectURL(previous);
       return '';
     });
+  };
+
+  const openLoanDetail = (loan) => {
+    setSelectedLoan(loan);
+    setExtensionDate('');
+    setExtensionReason('');
+    setExtensionError('');
+  };
+
+  const submitExtension = async (event) => {
+    event.preventDefault();
+    if (!selectedLoan) return;
+
+    setExtensionSubmitting(true);
+    setExtensionError('');
+    try {
+      await api.post(`/loans/${selectedLoan.id}/extensions`, {
+        tanggal_kembali_baru: extensionDate,
+        alasan: extensionReason,
+      });
+      setSuccessToast('Permohonan perpanjangan dikirim dan menunggu persetujuan Admin.');
+      setExtensionDate('');
+      setExtensionReason('');
+      const [loanResponse] = await Promise.all([
+        api.get(`/loans/${selectedLoan.id}`),
+        fetchLoans(page),
+        fetchAllForStats(),
+      ]);
+      setSelectedLoan(loanResponse.data);
+      setTimeout(() => setSuccessToast(''), 5000);
+    } catch (error) {
+      setExtensionError(
+        error.response?.data?.message
+          || Object.values(error.response?.data?.errors || {}).flat()[0]
+          || 'Permohonan perpanjangan gagal dikirim.'
+      );
+    } finally {
+      setExtensionSubmitting(false);
+    }
   };
 
   // Also fetch unfiltered loans to accurately calculate the 5 stat cards
@@ -177,6 +235,8 @@ export default function PeminjamanSayaPage() {
         return <span style={{ background: '#dbeafe', color: '#1e40af', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Disetujui - Menunggu BAST</span>;
       case 'Dipinjam':
         return <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Sedang Dipinjam</span>;
+      case 'Terlambat':
+        return <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>Terlambat</span>;
       case 'Selesai':
         return <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>Selesai</span>;
       case 'Ditolak':
@@ -439,7 +499,7 @@ export default function PeminjamanSayaPage() {
                 loans.map((loan, index) => {
                   const itemNumber = (pagination.from || 1) + index;
                   return (
-                      <tr key={loan.id} onClick={() => setSelectedLoan(loan)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Klik baris untuk melihat detail peminjaman">
+                      <tr key={loan.id} onClick={() => openLoanDetail(loan)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Klik baris untuk melihat detail peminjaman">
                       <td style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', padding: '12px 8px' }}>
                         {itemNumber}
                       </td>
@@ -468,7 +528,7 @@ export default function PeminjamanSayaPage() {
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          onClick={() => setSelectedLoan(loan)}
+                          onClick={() => openLoanDetail(loan)}
                           style={{ padding: '3px 8px', fontSize: '11px', borderRadius: '4px' }}
                         >
                           <HiOutlineEye /> Detail
@@ -554,6 +614,77 @@ export default function PeminjamanSayaPage() {
                   {selectedLoan.keperluan}
                 </div>
               </div>
+              {(() => {
+                const extensions = selectedLoan.extensions || [];
+                const pendingExtension = extensions.find((extension) => extension.status === 'Menunggu');
+                const isOwner = Number(selectedLoan.diajukan_oleh) === Number(user?.id);
+                const canRequestExtension = isOwner
+                  && ['Dipinjam', 'Terlambat'].includes(selectedLoan.status)
+                  && selectedLoan.tanggal_rencana_kembali
+                  && !pendingExtension;
+
+                return (
+                  <>
+                    {canRequestExtension && (
+                      <form
+                        onSubmit={submitExtension}
+                        style={{ marginTop: '14px', padding: '12px', border: '1px solid #cbd5e1', borderRadius: '6px' }}
+                      >
+                        <div style={{ fontWeight: 700, marginBottom: '8px' }}>Ajukan Perpanjangan</div>
+                        <p style={{ color: '#64748b', margin: '0 0 10px' }}>
+                          Tanggal kembali hanya berubah setelah disetujui Admin.
+                        </p>
+                        {extensionError && <div className="alert alert-danger" role="alert">{extensionError}</div>}
+                        <label htmlFor="extension-return-date" style={{ display: 'block', marginBottom: '4px' }}>Tanggal kembali baru</label>
+                        <input
+                          id="extension-return-date"
+                          className="form-control"
+                          type="date"
+                          min={dateAfter(selectedLoan.tanggal_rencana_kembali) > localTomorrow()
+                            ? dateAfter(selectedLoan.tanggal_rencana_kembali)
+                            : localTomorrow()}
+                          value={extensionDate}
+                          onChange={(event) => setExtensionDate(event.target.value)}
+                          required
+                        />
+                        <label htmlFor="extension-reason" style={{ display: 'block', margin: '10px 0 4px' }}>Alasan perpanjangan</label>
+                        <textarea
+                          id="extension-reason"
+                          className="form-control"
+                          value={extensionReason}
+                          onChange={(event) => setExtensionReason(event.target.value)}
+                          minLength={10}
+                          maxLength={5000}
+                          rows={3}
+                          required
+                        />
+                        <button type="submit" className="btn btn-primary" style={{ marginTop: '10px' }} disabled={extensionSubmitting}>
+                          {extensionSubmitting ? 'Mengirim...' : 'Kirim ke Admin'}
+                        </button>
+                      </form>
+                    )}
+                    {pendingExtension && (
+                      <div className="alert alert-warning" style={{ marginTop: '12px' }}>
+                        Perpanjangan sampai {formatDate(pendingExtension.tanggal_kembali_baru)} sedang menunggu persetujuan Admin.
+                      </div>
+                    )}
+                    {extensions.length > 0 && (
+                      <div style={{ marginTop: '14px' }}>
+                        <strong>Riwayat perpanjangan</strong>
+                        {extensions.map((extension) => (
+                          <div key={extension.id} style={{ marginTop: '6px', padding: '8px', background: '#f8fafc', borderRadius: '4px' }}>
+                            <span>{formatDate(extension.tanggal_kembali_lama)} → {formatDate(extension.tanggal_kembali_baru)}</span>
+                            <strong style={{ marginLeft: '8px', color: extension.status === 'Disetujui' ? '#15803d' : extension.status === 'Ditolak' ? '#b91c1c' : '#a16207' }}>
+                              {extension.status}
+                            </strong>
+                            {extension.catatan_admin && <div style={{ color: '#64748b' }}>Catatan Admin: {extension.catatan_admin}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               {selectedLoan.foto_peminjaman && (
                 <div style={{ marginTop: '12px' }}>
                   <span style={{ color: '#64748b', fontSize: '11px' }}>Foto Kondisi Saat Dipinjam:</span>
