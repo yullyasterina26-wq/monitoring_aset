@@ -2,6 +2,21 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import api from '../services/api';
 
 const AuthContext = createContext(null);
+const ADMIN_ROLES = ['admin_persetujuan', 'super_admin', 'admin_aset', 'admin'];
+
+function isAllowedRole(role) {
+  return role === 'operator' || ADMIN_ROLES.includes(role);
+}
+
+function getRoleLabel(role) {
+  return ({
+    operator: 'Operator',
+    admin_aset: 'Admin Aset',
+    admin_persetujuan: 'Admin Persetujuan',
+    super_admin: 'Super Admin',
+    admin: 'Super Admin',
+  })[String(role || '').toLowerCase()] || role || 'Operator';
+}
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('auth_token') || '');
@@ -30,10 +45,9 @@ export function AuthProvider({ children }) {
         const res = await api.get('/me');
         const currentUser = res.data?.user || res.data;
         if (currentUser) {
-          // Check role: must be operator or admin
           const role = String(currentUser.role || '').toLowerCase();
-          if (role !== 'operator' && role !== 'admin') {
-            throw new Error('Hanya akun dengan role operator atau admin yang dapat masuk.');
+          if (!isAllowedRole(role)) {
+            throw new Error('Akun tidak memiliki role yang diizinkan untuk masuk.');
           }
           setUser(currentUser);
           localStorage.setItem('auth_user', JSON.stringify(currentUser));
@@ -70,9 +84,9 @@ export function AuthProvider({ children }) {
     }
 
     const role = String(newUser?.role || '').toLowerCase();
-    if (role !== 'operator' && role !== 'admin') {
+    if (!isAllowedRole(role)) {
       throw new Error(
-        `Akun '${newUser?.name || email}' memiliki peran '${newUser?.role || 'user'}'. Hanya peran 'operator' atau 'admin' yang dapat login. Hubungi admin sistem utama untuk promosi peran.`
+        `Akun '${newUser?.name || email}' memiliki peran '${newUser?.role || 'user'}' yang tidak diizinkan. Hubungi administrator sistem.`
       );
     }
 
@@ -118,8 +132,12 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
-  const isOperator = String(user?.role || '').toLowerCase() === 'operator';
+  const role = String(user?.role || '').toLowerCase();
+  const isAdmin = ADMIN_ROLES.includes(role);
+  const isSuperAdmin = role === 'super_admin' || role === 'admin';
+  const canManageAssets = isSuperAdmin;
+  const canApprove = isSuperAdmin || role === 'admin_persetujuan' || role === 'admin_aset';
+  const isOperator = role === 'operator';
   const isAuthenticated = Boolean(token && user);
 
   return (
@@ -132,7 +150,11 @@ export function AuthProvider({ children }) {
         logout,
         refreshProfile,
         isAdmin,
+        isSuperAdmin,
+        canManageAssets,
+        canApprove,
         isOperator,
+        roleLabel: getRoleLabel(user?.role),
         isAuthenticated,
       }}
     >

@@ -139,8 +139,9 @@ VITE_API_BASE_URL=/api
 
 - **Endpoint Login**: `POST /api/login` dengan JSON `{ "email": "...", "password": "..." }`.
 - **Ketentuan Role**:
-  - API hanya menerima akun aktif (`is_active = true`) dengan role **`operator`** atau **`admin`**.
-  - **Akun dengan role `user` TIDAK DAPAT login ke aplikasi ini**. Admin sistem utama harus mempromosikan role akun menjadi `operator` terlebih dahulu melalui dashboard web admin.
+  - API menerima akun aktif (`is_active = true`) dengan role `operator`, `admin_aset`, `admin_persetujuan`, atau `super_admin`. Role lama `admin` tetap didukung sebagai super admin.
+  - `admin_aset` mengelola data dan kategori aset; `admin_persetujuan` menangani persetujuan operasional dan BAST; `super_admin` memiliki seluruh hak akses termasuk pengelolaan pengguna.
+  - Akun dengan role `user` tidak dapat login ke aplikasi ini. Pengaturan role dilakukan melalui dashboard web manajemen aset.
 - **Penyimpanan Token**: Token Sanctum disimpan secara aman di `localStorage` perangkat. Kata sandi tidak pernah disimpan di sisi klien.
 - **Header Permintaan**: Setiap permintaan privat otomatis menyertakan:
   ```http

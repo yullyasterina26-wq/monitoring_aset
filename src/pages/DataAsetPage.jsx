@@ -19,7 +19,7 @@ import api from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DataAsetPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canManageAssets } = useAuth();
   const [assets, setAssets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -341,17 +341,7 @@ export default function DataAsetPage() {
                         >
                           Detail
                         </button>
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => setQrPrintAsset(item)}
-                            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                            title="Lihat Kode QR"
-                          >
-                            <HiOutlineQrcode />
-                          </button>
-                        ) : (
+                        {!canManageAssets && (
                           <button
                             type="button"
                             className="btn btn-primary"
@@ -362,6 +352,17 @@ export default function DataAsetPage() {
                             Pinjam
                           </button>
                         )}
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => setQrPrintAsset(item)}
+                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                          title={`Tampilkan QR ${item.kode_aset}`}
+                          aria-label={`Tampilkan QR ${item.kode_aset}`}
+                        >
+                          <HiOutlineQrcode />
+                          <span>QR</span>
+                        </button>
                       </div>
                     </td>
                   </tr>

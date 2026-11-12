@@ -36,13 +36,20 @@ export default function StatCard({
       badgeBg: '#f3e8ff',
       badgeText: '#6b21a8',
     },
+    indigo: {
+      bg: '#e0e7ff',
+      text: '#4f46e5',
+      border: '#c7d2fe',
+      badgeBg: '#e0e7ff',
+      badgeText: '#3730a3',
+    },
   };
 
   const scheme = colorMap[color] || colorMap.blue;
 
   return (
     <div
-      className="stat-card-custom"
+      className={`stat-card-custom${onClick ? ' is-clickable' : ''} stat-card-custom--${color}`}
       onClick={onClick}
       style={{
         background: '#ffffff',

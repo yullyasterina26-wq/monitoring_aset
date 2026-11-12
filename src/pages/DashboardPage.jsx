@@ -25,7 +25,7 @@ import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, canManageAssets, canApprove } = useAuth();
 
   // Stats state
   const [dashboardData, setDashboardData] = useState(null);
@@ -56,6 +56,18 @@ export default function DashboardPage() {
   // Fetch Dashboard Data
   const fetchDashboardData = async () => {
     setStatsLoading(true);
+
+    if (canManageAssets && !canApprove) {
+      try {
+        const response = await api.get('/dashboard');
+        setDashboardData(response.data || null);
+      } catch (error) {
+        console.error('Gagal memuat ringkasan aset:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+      return;
+    }
 
     // 1. Fetch summary from /operasional/dashboard
     try {
@@ -198,11 +210,13 @@ export default function DashboardPage() {
                 letterSpacing: '-0.3px',
               }}
             >
-              Dashboard Operator
+              {canManageAssets && !canApprove ? 'Dashboard Pengelola Aset' : 'Dashboard Operasional'}
             </h1>
           </div>
           <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '0.9rem' }}>
-            Pindai QR fisik, ajukan peminjaman &amp; mutasi, serta catat pemeriksaan berkala aset.
+            {canManageAssets && !canApprove
+              ? 'Pantau ringkasan inventaris dan data aset.'
+              : 'Pindai QR fisik, ajukan peminjaman &amp; mutasi, serta catat pemeriksaan berkala aset.'}
           </p>
         </div>
 
@@ -232,49 +246,67 @@ export default function DashboardPage() {
           marginBottom: '1.5rem',
         }}
       >
-        {/* A. Aset Tersedia */}
-        <StatCard
-          title="ASET TERSEDIA"
-          value={asetTersediaCount}
-          description="Kondisi baik &amp; siap dipinjam"
-          badgeText="Siap Digunakan"
-          icon={HiOutlineCube}
-          color="blue"
-          onClick={() => navigate('/aset')}
-        />
-
-        {/* B. Peminjaman Saya */}
-        <StatCard
-          title="PEMINJAMAN SAYA"
-          value={peminjamanSayaCount}
-          description="Peminjaman sedang aktif"
-          badgeText="Sedang Berjalan"
-          icon={HiOutlineClipboardList}
-          color="green"
-          onClick={() => navigate('/peminjaman')}
-        />
-
-        {/* C. Menunggu Persetujuan Pinjaman */}
-        <StatCard
-          title="PERSETUJUAN PINJAMAN"
-          value={menungguPersetujuanCount}
-          description="Pengajuan pinjaman dalam review"
-          badgeText="Pending Pinjam"
-          icon={HiOutlineClock}
-          color="amber"
-          onClick={() => navigate('/peminjaman')}
-        />
-
-        {/* D. Menunggu Mutasi */}
-        <StatCard
-          title="MUTASI MENUNGGU"
-          value={menungguMutasiCount}
-          description="Pengajuan mutasi dalam review"
-          badgeText="Pending Mutasi"
-          icon={HiOutlineSwitchHorizontal}
-          color="indigo"
-          onClick={() => navigate('/mutasi')}
-        />
+        {canManageAssets && !canApprove ? (
+          <>
+            <StatCard
+              title="TOTAL ASET"
+              value={dashboardData?.total_aset || 0}
+              description="Seluruh inventaris terdaftar"
+              badgeText="Data Inventaris"
+              icon={HiOutlineCube}
+              color="blue"
+              onClick={() => navigate('/aset')}
+            />
+            <StatCard
+              title="ASET TERSEDIA"
+              value={dashboardData?.aset_baik || 0}
+              description="Aset berkondisi baik"
+              badgeText="Siap Digunakan"
+              icon={HiOutlineCheck}
+              color="green"
+              onClick={() => navigate('/aset')}
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              title="ASET TERSEDIA"
+              value={asetTersediaCount}
+              description="Kondisi baik &amp; siap dipinjam"
+              badgeText="Siap Digunakan"
+              icon={HiOutlineCube}
+              color="blue"
+              onClick={() => navigate('/aset')}
+            />
+            <StatCard
+              title="PEMINJAMAN SAYA"
+              value={peminjamanSayaCount}
+              description="Peminjaman sedang aktif"
+              badgeText="Sedang Berjalan"
+              icon={HiOutlineClipboardList}
+              color="green"
+              onClick={() => navigate('/peminjaman')}
+            />
+            <StatCard
+              title="PERSETUJUAN PINJAMAN"
+              value={menungguPersetujuanCount}
+              description="Pengajuan pinjaman dalam review"
+              badgeText="Pending Pinjam"
+              icon={HiOutlineClock}
+              color="amber"
+              onClick={() => navigate('/peminjaman')}
+            />
+            <StatCard
+              title="MUTASI MENUNGGU"
+              value={menungguMutasiCount}
+              description="Pengajuan mutasi dalam review"
+              badgeText="Pending Mutasi"
+              icon={HiOutlineSwitchHorizontal}
+              color="indigo"
+              onClick={() => navigate('/mutasi')}
+            />
+          </>
+        )}
       </div>
 
       {/* Quick Actions Component */}

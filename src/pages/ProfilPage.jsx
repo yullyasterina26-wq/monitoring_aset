@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 
 export default function ProfilPage() {
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, roleLabel } = useAuth();
   const [profile, setProfile] = useState(user);
   const [profileForm, setProfileForm] = useState({ name: user?.name || '', username: user?.username || '', email: user?.email || '' });
   const [loading, setLoading] = useState(true);
@@ -90,7 +90,7 @@ export default function ProfilPage() {
     ['Nama', profile?.name || '-'],
     ['Username', profile?.username || '-'],
     ['Email', profile?.email || '-'],
-    ['Peran', profile?.role || '-'],
+    ['Peran', profile?.id === user?.id ? roleLabel : (profile?.role || '-')],
     ['Status akun', profile?.is_active === false ? 'Nonaktif' : 'Aktif'],
     ['Login terakhir', formatDateTime(profile?.last_login_at)],
     ['Akun dibuat', formatDateTime(profile?.created_at)],

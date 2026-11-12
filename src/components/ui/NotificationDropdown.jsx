@@ -275,7 +275,7 @@ export default function NotificationDropdown() {
       {/* Bell Button */}
       <button
         type="button"
-        className="btn btn-secondary"
+        className="btn btn-secondary notification-trigger"
         onClick={() => { setIsOpen((prev) => !prev); fetchNotifications(); }}
         style={{
           position: 'relative',
@@ -322,15 +322,16 @@ export default function NotificationDropdown() {
       {/* Dropdown Panel */}
       {isOpen && (
         <div
+          className="notification-panel"
           style={{
             position: 'absolute',
             top: 'calc(100% + 8px)',
             right: 0,
             width: '360px',
             maxWidth: '92vw',
-            background: '#ffffff',
+            background: 'var(--bg-card)',
             borderRadius: '12px',
-            boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08)',
+            boxShadow: 'var(--shadow-xl)',
             border: '1px solid var(--gray-200)',
             zIndex: 1100,
             overflow: 'hidden',
@@ -341,6 +342,7 @@ export default function NotificationDropdown() {
         >
           {/* Header */}
           <div
+            className="notification-header"
             style={{
               padding: '12px 16px',
               borderBottom: '1px solid var(--gray-100)',
@@ -392,16 +394,18 @@ export default function NotificationDropdown() {
 
           {/* Filter Tabs */}
           <div
+            className="notification-tabs"
             style={{
               display: 'flex',
               borderBottom: '1px solid var(--gray-100)',
               padding: '4px 12px',
-              background: '#ffffff',
+              background: 'var(--bg-card)',
               gap: '6px',
             }}
           >
             <button
               type="button"
+              className="notification-tab"
               onClick={() => setActiveFilter('semua')}
               style={{
                 border: 'none',
@@ -419,6 +423,7 @@ export default function NotificationDropdown() {
 
             <button
               type="button"
+              className="notification-tab"
               onClick={() => setActiveFilter('peminjaman')}
               style={{
                 border: 'none',
@@ -436,6 +441,7 @@ export default function NotificationDropdown() {
 
             <button
               type="button"
+              className="notification-tab"
               onClick={() => setActiveFilter('mutasi')}
               style={{
                 border: 'none',
@@ -453,7 +459,7 @@ export default function NotificationDropdown() {
           </div>
 
           {/* Notification List Body */}
-          <div style={{ overflowY: 'auto', flex: 1, padding: '4px 0' }}>
+          <div className="notification-list" style={{ overflowY: 'auto', flex: 1, padding: '4px 0', background: 'var(--bg-card)' }}>
             {loading && notifications.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '2rem 1rem', fontSize: '0.8rem', color: 'var(--gray-500)' }}>
                 Memuat pembaruan aktivitas...
@@ -474,12 +480,13 @@ export default function NotificationDropdown() {
                 return (
                   <div
                     key={item.id}
+                    className={`notification-item ${isUnread ? 'unread' : ''}`}
                     onClick={() => handleItemClick(item)}
                     style={{
                       padding: '10px 14px',
                       borderBottom: '1px solid var(--gray-100)',
                       cursor: 'pointer',
-                      background: isUnread ? '#eff6ff' : '#ffffff',
+                      background: isUnread ? 'var(--primary-50)' : 'var(--bg-card)',
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: '10px',
@@ -582,6 +589,7 @@ export default function NotificationDropdown() {
 
           {/* Footer */}
           <div
+            className="notification-footer"
             style={{
               padding: '8px 12px',
               borderTop: '1px solid var(--gray-100)',

@@ -33,6 +33,7 @@ export default function MutationModal({
 
   const [tanggalMutasi, setTanggalMutasi] = useState(todayStr);
   const [tanggalRencanaKembali, setTanggalRencanaKembali] = useState(getDefaultReturnDate);
+  const [tanpaTanggalKembali, setTanpaTanggalKembali] = useState(false);
   const [lokasiAsal, setLokasiAsal] = useState('');
   const [lokasiTujuan, setLokasiTujuan] = useState('');
   const [unitTujuan, setUnitTujuan] = useState('');
@@ -51,6 +52,7 @@ export default function MutationModal({
     setSelectedAssetObj(draft.aset || null);
     setTanggalMutasi(draft.tanggalMutasi || todayStr);
     setTanggalRencanaKembali(draft.tanggalRencanaKembali || getDefaultReturnDate());
+    setTanpaTanggalKembali(Boolean(draft.tanpaTanggalKembali));
     setLokasiAsal(draft.lokasiAsal || '');
     setLokasiTujuan(draft.lokasiTujuan || '');
     setUnitTujuan(draft.unitTujuan || '');
@@ -59,7 +61,7 @@ export default function MutationModal({
     setKeterangan(draft.keterangan || '');
     setDokumenFile(null);
   }, [todayStr]);
-  const draftState = { asetId: selectedAssetId, aset: selectedAssetObj, tanggalMutasi, tanggalRencanaKembali, lokasiAsal, lokasiTujuan, unitTujuan, alasan, petugas, keterangan };
+  const draftState = { asetId: selectedAssetId, aset: selectedAssetObj, tanggalMutasi, tanggalRencanaKembali, tanpaTanggalKembali, lokasiAsal, lokasiTujuan, unitTujuan, alasan, petugas, keterangan };
   const { visible, clearDraft } = usePersistentDraft('draft:mutation', isOpen, draftState, restoreDraft);
   const closeModal = () => { clearDraft(); setFotoMutasi(null); setFotoError(''); onClose(); };
 
@@ -68,6 +70,7 @@ export default function MutationModal({
       setErrorMsg('');
       setFieldErrors({});
       setTanggalMutasi(todayStr);
+      setTanpaTanggalKembali(false);
       setPetugas(user?.name || 'Petugas Operasional');
 
       if (initialAsset) {
@@ -117,7 +120,7 @@ export default function MutationModal({
       setErrorMsg('Pilih aset yang akan dimutasi.');
       return;
     }
-    if (!tanggalRencanaKembali) {
+    if (!tanpaTanggalKembali && !tanggalRencanaKembali) {
       setErrorMsg('Harap isi rencana tanggal kembali.');
       return;
     }
@@ -147,7 +150,7 @@ export default function MutationModal({
     try {
       const formData = new FormData();
       formData.append('tanggal_mutasi', tanggalMutasi);
-      formData.append('tanggal_rencana_kembali', tanggalRencanaKembali);
+      if (!tanpaTanggalKembali) formData.append('tanggal_rencana_kembali', tanggalRencanaKembali);
       formData.append('aset_id', selectedAssetId);
       formData.append('lokasi_asal', lokasiAsal || selectedAssetObj?.lokasi || '-');
       formData.append('lokasi_tujuan', lokasiTujuan.trim());
@@ -256,7 +259,7 @@ export default function MutationModal({
 
               <div className="form-group">
                 <label htmlFor="mutasi-tanggal-kembali" style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                  Rencana Tanggal Kembali <span style={{ color: '#ef4444' }}>*</span>
+                  Rencana Tanggal Kembali {!tanpaTanggalKembali && <span style={{ color: '#ef4444' }}>*</span>}
                 </label>
                 <input
                   id="mutasi-tanggal-kembali"
@@ -265,13 +268,23 @@ export default function MutationModal({
                   value={tanggalRencanaKembali}
                   onChange={(e) => setTanggalRencanaKembali(e.target.value)}
                   min={tanggalMutasi}
-                  required
+                  disabled={tanpaTanggalKembali}
+                  required={!tanpaTanggalKembali}
                 />
                 {fieldErrors.tanggal_rencana_kembali && (
                   <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px' }}>
                     {fieldErrors.tanggal_rencana_kembali[0]}
                   </div>
                 )}
+                <label htmlFor="mutasi-tanpa-tanggal-kembali" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                  <input
+                    id="mutasi-tanpa-tanggal-kembali"
+                    type="checkbox"
+                    checked={tanpaTanggalKembali}
+                    onChange={(e) => setTanpaTanggalKembali(e.target.checked)}
+                  />
+                  Tanpa tanggal kembali
+                </label>
               </div>
             </div>
 

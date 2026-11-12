@@ -14,8 +14,8 @@ import PenghapusanPage from './pages/PenghapusanPage';
 import ProfilPage from './pages/ProfilPage';
 import { useAuth } from './contexts/AuthContext';
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+function ProtectedRoute({ children, operational = false, deletionRequest = false }) {
+  const { isAuthenticated, loading, isOperator, canApprove, canManageAssets } = useAuth();
   if (loading && !isAuthenticated) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
@@ -25,6 +25,12 @@ function ProtectedRoute({ children }) {
   }
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  if (operational && !isOperator && !canApprove) {
+    return <Navigate to="/" replace />;
+  }
+  if (deletionRequest && !isOperator && !canApprove && !canManageAssets) {
+    return <Navigate to="/" replace />;
   }
   return children;
 }
@@ -56,14 +62,14 @@ export default function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="aset" element={<DataAsetPage />} />
-        <Route path="peminjaman" element={<PeminjamanSayaPage />} />
-        <Route path="mutasi" element={<MutasiPage />} />
-        <Route path="pemeriksaan" element={<PemeriksaanPage />} />
-        <Route path="penghapusan" element={<PenghapusanPage />} />
+        <Route path="peminjaman" element={<ProtectedRoute operational><PeminjamanSayaPage /></ProtectedRoute>} />
+        <Route path="mutasi" element={<ProtectedRoute operational><MutasiPage /></ProtectedRoute>} />
+        <Route path="pemeriksaan" element={<ProtectedRoute operational><PemeriksaanPage /></ProtectedRoute>} />
+        <Route path="penghapusan" element={<ProtectedRoute deletionRequest><PenghapusanPage /></ProtectedRoute>} />
         <Route path="profil" element={<ProfilPage />} />
-        <Route path="aktivitas" element={<AktivitasPage />} />
-        <Route path="dokumen" element={<DokumenPage />} />
-        <Route path="laporan" element={<LaporanPage />} />
+        <Route path="aktivitas" element={<ProtectedRoute operational><AktivitasPage /></ProtectedRoute>} />
+        <Route path="dokumen" element={<ProtectedRoute operational><DokumenPage /></ProtectedRoute>} />
+        <Route path="laporan" element={<ProtectedRoute operational><LaporanPage /></ProtectedRoute>} />
       </Route>
 
       {/* Fallback */}

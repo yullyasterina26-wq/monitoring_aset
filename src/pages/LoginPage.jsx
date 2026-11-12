@@ -63,7 +63,7 @@ export default function LoginPage() {
       setError(`Login untuk melanjutkan ${action === 'loan' ? 'pengajuan peminjaman' : action === 'mutation' ? 'pengajuan mutasi' : 'pemeriksaan'} aset ${asset.kode_aset || asset.nama_aset}.`);
       return;
     }
-    setError('Aksi ini memerlukan autentikasi. Silakan login dengan akun operator/admin.');
+    setError('Aksi ini memerlukan autentikasi. Silakan login dengan akun Operator atau Admin aktif.');
   };
 
   return (
@@ -225,7 +225,7 @@ export default function LoginPage() {
         >
           <HiOutlineInformationCircle style={{ fontSize: '16px', flexShrink: 0, marginTop: '1px', color: 'var(--primary-600)' }} />
           <span>
-            Hanya akun dengan peran <strong>operator</strong> atau <strong>admin</strong> yang aktif yang dapat masuk. Akun dengan peran biasa (user) perlu diubah oleh admin sistem utama.
+            Hanya akun <strong>Operator</strong> atau <strong>Admin</strong> yang aktif yang dapat masuk. Akun dengan peran biasa (user) perlu diubah oleh Super Admin.
           </span>
         </div>
       </div>
