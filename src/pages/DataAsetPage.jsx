@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   HiOutlineSearch,
@@ -13,16 +13,18 @@ import { Loading, Badge, kondisiBadge, Pagination } from '../components/ui/Share
 import LoanModal from '../components/ui/LoanModal';
 import MutationModal from '../components/ui/MutationModal';
 import InspectionModal from '../components/ui/InspectionModal';
+import DeletionModal from '../components/ui/DeletionModal';
 import AssetDetailModal from '../components/ui/AssetDetailModal';
 import QrScannerModal from '../components/ui/QrScannerModal';
 import api from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
 
 export default function DataAsetPage() {
-  const { isAdmin, canManageAssets } = useAuth();
+  const { isAdmin } = useAuth();
   const [assets, setAssets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
 
   // Filters
@@ -40,6 +42,8 @@ export default function DataAsetPage() {
   const [isMutationModalOpen, setIsMutationModalOpen] = useState(false);
   const [selectedAssetForInspection, setSelectedAssetForInspection] = useState(null);
   const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const [isDeletionModalOpen, setIsDeletionModalOpen] = useState(false);
+  const [selectedAssetForDeletion, setSelectedAssetForDeletion] = useState(null);
   const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [qrPrintAsset, setQrPrintAsset] = useState(null);
 
@@ -58,14 +62,13 @@ export default function DataAsetPage() {
   }, []);
 
   // Fetch assets with pagination and filters
-  const fetchAssets = (pageNum = 1) => {
+  const fetchAssets = useCallback((pageNum = 1) => {
     setLoading(true);
     const params = {
       page: pageNum,
       search: debouncedSearch || undefined,
       kategori_id: kategoriId || undefined,
-      // Operator hanya boleh melihat aset berkondisi baik untuk peminjaman.
-      kondisi: isAdmin ? (kondisi || undefined) : 'Baik',
+      kondisi: kondisi || undefined,
       per_page: 10,
     };
 
@@ -73,6 +76,7 @@ export default function DataAsetPage() {
       .then((res) => {
         const list = res.data?.data || res.data || [];
         setAssets(list);
+        setFetchError('');
         if (res.data?.current_page) {
           setPagination({
             currentPage: res.data.current_page,
@@ -93,13 +97,14 @@ export default function DataAsetPage() {
       })
       .catch((err) => {
         console.error('Error fetching assets:', err);
+        setFetchError(err.response?.data?.message || 'Data aset gagal dimuat. Periksa koneksi ke server, lalu coba lagi.');
       })
       .finally(() => setLoading(false));
-  };
+  }, [debouncedSearch, isAdmin, kategoriId, kondisi]);
 
   useEffect(() => {
     fetchAssets(page);
-  }, [page, kategoriId, kondisi, debouncedSearch, isAdmin]);
+  }, [fetchAssets, page]);
 
   const handleReset = () => {
     setSearch('');
@@ -186,9 +191,9 @@ export default function DataAsetPage() {
           border: '1px solid var(--gray-200)',
         }}
       >
-        <form onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <form className="asset-filter-form" onSubmit={(e) => e.preventDefault()} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Keyword Search */}
-          <div style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
+          <div className="asset-filter-search" style={{ flex: 1, minWidth: '220px', position: 'relative' }}>
             <HiOutlineSearch
               style={{
                 position: 'absolute',
@@ -209,42 +214,45 @@ export default function DataAsetPage() {
             />
           </div>
 
-          {/* Kategori Filter */}
-          <div style={{ width: '180px' }}>
-            <select
-              className="form-control"
-              value={kategoriId}
-              onChange={(e) => {
-                setKategoriId(e.target.value);
-                setPage(1);
-              }}
-              style={{ fontSize: '0.875rem' }}
-            >
-              <option value="">Semua Kategori</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.nama_kategori}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div className="asset-filter-selects">
+            {/* Kategori Filter */}
+            <div className="asset-filter-category" style={{ width: '180px' }}>
+              <select
+                className="form-control"
+                value={kategoriId}
+                onChange={(e) => {
+                  setKategoriId(e.target.value);
+                  setPage(1);
+                }}
+                style={{ fontSize: '0.875rem' }}
+              >
+                <option value="">Semua Kategori</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.nama_kategori}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Admin dapat meninjau seluruh kondisi; operasional hanya melihat aset baik. */}
-          {isAdmin && <div style={{ width: '160px' }}>
-            <select
-              className="form-control"
-              value={kondisi}
-              onChange={(e) => {
-                setKondisi(e.target.value);
-                setPage(1);
-              }}
-              style={{ fontSize: '0.875rem' }}
-            >
-              <option value="">Semua Kondisi</option>
-              <option value="Baik">Baik</option>
-              <option value="Rusak">Rusak</option>
-            </select>
-          </div>}
+            {/* Condition filter */}
+            <div className="asset-filter-condition" style={{ width: '160px' }}>
+              <select
+                className="form-control"
+                aria-label="Filter kondisi aset"
+                value={kondisi}
+                onChange={(e) => {
+                  setKondisi(e.target.value);
+                  setPage(1);
+                }}
+                style={{ fontSize: '0.875rem' }}
+              >
+                <option value="">Semua Kondisi</option>
+                <option value="Baik">Baik</option>
+                <option value="Rusak">Rusak</option>
+              </select>
+            </div>
+          </div>
 
           {(search || kategoriId || kondisi) && (
             <button
@@ -266,6 +274,20 @@ export default function DataAsetPage() {
           <div style={{ padding: '3.5rem' }}>
             <Loading text="Memuat daftar aset..." />
           </div>
+        ) : fetchError ? (
+          <div style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
+            <HiOutlineInbox style={{ fontSize: '48px', color: 'var(--gray-300)', margin: '0 auto 12px' }} />
+            <h4 style={{ margin: '0 0 6px', fontSize: '1rem', color: 'var(--gray-700)' }}>
+              Data aset gagal dimuat
+            </h4>
+            <p style={{ margin: '0 0 14px', fontSize: '0.85rem', color: 'var(--gray-500)' }}>
+              {fetchError}
+            </p>
+            <button type="button" className="btn btn-secondary" onClick={() => fetchAssets(page)}>
+              <HiOutlineRefresh style={{ marginRight: '6px' }} />
+              Coba lagi
+            </button>
+          </div>
         ) : assets.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3.5rem 1rem' }}>
             <HiOutlineInbox style={{ fontSize: '48px', color: 'var(--gray-300)', margin: '0 auto 12px' }} />
@@ -277,7 +299,7 @@ export default function DataAsetPage() {
             </p>
           </div>
         ) : (
-          <div className="table-responsive">
+          <div className="table-responsive asset-table-desktop">
             <table className="table" style={{ margin: 0 }}>
               <thead>
                 <tr>
@@ -341,17 +363,6 @@ export default function DataAsetPage() {
                         >
                           Detail
                         </button>
-                        {!canManageAssets && (
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={() => openLoanForAsset(item)}
-                            style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                            title="Ajukan peminjaman aset"
-                          >
-                            Pinjam
-                          </button>
-                        )}
                         <button
                           type="button"
                           className="btn btn-secondary"
@@ -369,6 +380,51 @@ export default function DataAsetPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && assets.length > 0 && (
+          <div className="asset-mobile-list">
+            {assets.map((item) => (
+              <article className="asset-mobile-card" key={item.id}>
+                <button
+                  type="button"
+                  className="asset-mobile-card-main"
+                  onClick={() => setSelectedAssetForDetail(item)}
+                >
+                  <span className="asset-mobile-code">{item.kode_aset || 'Tanpa kode'}</span>
+                  <strong className="asset-mobile-name">{item.nama_aset || 'Aset tanpa nama'}</strong>
+                  <span className="asset-mobile-meta">
+                    Lokasi: {item.lokasi || '-'} · Unit: {item.unit || '-'}
+                  </span>
+                  <span className="asset-mobile-badges">
+                    <Badge type={kondisiBadge(item.kondisi)}>
+                      {/^rusak/i.test(item.kondisi || '') ? 'Rusak' : item.kondisi || 'Kondisi belum dicatat'}
+                    </Badge>
+                    <Badge type="info">
+                      {item.kategori?.nama_kategori || item.kategori || 'Perangkat'}
+                    </Badge>
+                  </span>
+                </button>
+                <div className="asset-mobile-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setSelectedAssetForDetail(item)}
+                  >
+                    Detail
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setQrPrintAsset(item)}
+                    aria-label={`Tampilkan QR ${item.kode_aset}`}
+                  >
+                    <HiOutlineQrcode />
+                    QR
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
         )}
 
@@ -438,6 +494,10 @@ export default function DataAsetPage() {
         onSelectAssetForLoan={!isAdmin ? (asset) => {
           openLoanForAsset(asset);
         } : undefined}
+        onSelectAssetForDeletion={!isAdmin ? (asset) => {
+          setSelectedAssetForDeletion(asset);
+          setIsDeletionModalOpen(true);
+        } : undefined}
       />
 
       {/* Detail Modal */}
@@ -446,6 +506,18 @@ export default function DataAsetPage() {
         onClose={() => setSelectedAssetForDetail(null)}
         onPinjam={!isAdmin ? (asset) => {
           openLoanForAsset(asset);
+        } : undefined}
+        onMutasi={!isAdmin ? (asset) => {
+          setSelectedAssetForMutation(asset);
+          setIsMutationModalOpen(true);
+        } : undefined}
+        onPemeriksaan={!isAdmin ? (asset) => {
+          setSelectedAssetForInspection(asset);
+          setIsInspectionModalOpen(true);
+        } : undefined}
+        onPenghapusan={!isAdmin ? (asset) => {
+          setSelectedAssetForDeletion(asset);
+          setIsDeletionModalOpen(true);
         } : undefined}
       />
 
@@ -487,6 +559,19 @@ export default function DataAsetPage() {
         initialAsset={selectedAssetForInspection}
         onSuccess={() => {
           showToast('Catatan pemeriksaan aset berhasil disimpan!');
+          fetchAssets(page);
+        }}
+      />
+
+      <DeletionModal
+        isOpen={isDeletionModalOpen}
+        onClose={() => {
+          setIsDeletionModalOpen(false);
+          setSelectedAssetForDeletion(null);
+        }}
+        initialAsset={selectedAssetForDeletion}
+        onSuccess={() => {
+          showToast('Pengajuan penghapusan aset berhasil dikirim! Menunggu persetujuan admin.');
           fetchAssets(page);
         }}
       />

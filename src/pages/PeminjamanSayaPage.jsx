@@ -6,10 +6,11 @@ import {
   HiOutlineInbox,
   HiOutlineEye,
   HiOutlineX,
+  HiOutlineCube,
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
 import { useAuth } from '../contexts/AuthContext';
-import { Loading, Badge, Pagination, formatDate, formatDateTime } from '../components/ui/Shared';
+import { Loading, Badge, Pagination, formatDate, formatDateTime, formatTime } from '../components/ui/Shared';
 import LoanModal from '../components/ui/LoanModal';
 import ImagePreview from '../components/ui/ImagePreview';
 import api from '../services/api';
@@ -70,7 +71,7 @@ const localTomorrow = () => {
 export default function PeminjamanSayaPage() {
   const { isAdmin, user } = useAuth();
   const [loans, setLoans] = useState([]);
-  const [allLoans, setAllLoans] = useState([]);
+  const [loanStats, setLoanStats] = useState({ menunggu: 0, diproses: 0, dipinjam: 0, selesai: 0 });
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [search, setSearch] = useState('');
@@ -180,7 +181,7 @@ export default function PeminjamanSayaPage() {
       const [loanResponse] = await Promise.all([
         api.get(`/loans/${selectedLoan.id}`),
         fetchLoans(page),
-        fetchAllForStats(),
+        fetchLoanStats(),
       ]);
       setSelectedLoan(loanResponse.data);
       setTimeout(() => setSuccessToast(''), 5000);
@@ -195,32 +196,37 @@ export default function PeminjamanSayaPage() {
     }
   };
 
-  // Also fetch unfiltered loans to accurately calculate the 5 stat cards
-  const fetchAllForStats = () => {
-    api.get('/loans', { params: { per_page: 50 } })
-      .then(res => {
-        const list = res.data.data || res.data || [];
-        setAllLoans(list);
-      })
-      .catch(() => {});
+  const fetchLoanStats = async () => {
+    try {
+      const { data } = await api.get('/loans/statistics', { timeout: 30000 });
+      const statuses = ['menunggu', 'diproses', 'dipinjam', 'terlambat', 'selesai'];
+      if (statuses.some((status) => typeof data?.[status] !== 'number')) {
+        throw new Error('Jumlah peminjaman tidak tersedia.');
+      }
+      setLoanStats({
+        menunggu: data.menunggu,
+        diproses: data.diproses,
+        dipinjam: data.dipinjam + data.terlambat,
+        selesai: data.selesai,
+      });
+    } catch (error) {
+      console.error('Gagal memuat ringkasan peminjaman:', error);
+    }
   };
 
   useEffect(() => {
     fetchLoans(page);
-    fetchAllForStats();
   }, [page, statusFilter, debouncedSearch]);
+
+  useEffect(() => {
+    fetchLoanStats();
+  }, []);
 
   const handleReset = () => {
     setSearch('');
     setStatusFilter('');
     setPage(1);
   };
-
-  // Stat Card Counts
-  const countMenunggu = allLoans.filter(l => l.status === 'Menunggu').length;
-  const countDisetujui = allLoans.filter(l => l.status === 'Diproses').length;
-  const countSedangDipinjam = allLoans.filter(l => l.status === 'Dipinjam').length;
-  const countSelesai = allLoans.filter(l => l.status === 'Selesai').length;
 
   const getStatusBadge = (status, statusBast) => {
     if (status === 'Diproses' && statusBast) {
@@ -255,50 +261,35 @@ export default function PeminjamanSayaPage() {
       )}
 
       {/* Header Row matching Screenshot 2 */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          marginBottom: '1.25rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <MdHandshake style={{ fontSize: '24px', color: '#1e293b' }} />
-          <h1 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#1e293b' }}>
-            Peminjaman Aset
-          </h1>
-          <span style={{ fontSize: '12px', color: '#64748b', marginLeft: '6px' }}>
+      <div className="page-header-row">
+        <div className="page-header-title-area">
+          <div className="page-header-heading">
+            <MdHandshake className="page-header-icon" />
+            <h1 className="page-header-title">
+              Peminjaman Aset
+            </h1>
+          </div>
+          <span className="page-header-sub">
             Pengajuan, serah terima BAST, dan pengembalian aset.
           </span>
         </div>
 
-        {!isAdmin && <button
-          type="button"
-          onClick={() => setIsLoanModalOpen(true)}
-          style={{
-            background: '#0f223d',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '8px 16px',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-          }}
-          id="btn-tambah-peminjaman"
-        >
-          <HiOutlinePlus /> Tambah Peminjaman
-        </button>}
+        {!isAdmin && (
+          <button
+            type="button"
+            className="btn btn-primary page-action-btn"
+            onClick={() => setIsLoanModalOpen(true)}
+            id="btn-tambah-peminjaman"
+          >
+            <HiOutlinePlus /> <span>Ajukan Peminjaman Baru</span>
+          </button>
+        )}
       </div>
 
-      {/* 5 Stat Cards in a row matching Screenshot 2 */}
+
+      {/* 4 Kartu Status Alur Peminjaman */}
       <div
+        className="loan-stats-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -318,7 +309,7 @@ export default function PeminjamanSayaPage() {
           }}
         >
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#d97706' }}>Menunggu Persetujuan</div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#f59e0b', margin: '4px 0 2px' }}>{countMenunggu}</div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#f59e0b', margin: '4px 0 2px' }}>{loanStats.menunggu}</div>
           <div style={{ fontSize: '11px', color: '#94a3b8' }}>Perlu ditinjau admin</div>
         </div>
 
@@ -334,7 +325,7 @@ export default function PeminjamanSayaPage() {
           }}
         >
           <div style={{ fontSize: '11px', fontWeight: 600, color: '#2563eb' }}>Disetujui - Proses BAST</div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6', margin: '4px 0 2px' }}>{countDisetujui}</div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6', margin: '4px 0 2px' }}>{loanStats.diproses}</div>
           <div style={{ fontSize: '11px', color: '#94a3b8' }}>Menunggu BAST disiapkan dan diarsipkan</div>
         </div>
 
@@ -349,8 +340,8 @@ export default function PeminjamanSayaPage() {
             boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           }}
         >
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7' }}>Sedang Dipinjam</div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#06b6d4', margin: '4px 0 2px' }}>{countSedangDipinjam}</div>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: '#0891b2' }}>Sedang Dipinjam</div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#06b6d4', margin: '4px 0 2px' }}>{loanStats.dipinjam}</div>
           <div style={{ fontSize: '11px', color: '#94a3b8' }}>Pantau jadwal pengembalian pada daftar</div>
         </div>
 
@@ -365,42 +356,31 @@ export default function PeminjamanSayaPage() {
             boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
           }}
         >
-          <div style={{ fontSize: '11px', fontWeight: 600, color: '#16a34a' }}>Selesai</div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#10b981', margin: '4px 0 2px' }}>{countSelesai}</div>
+          <div style={{ fontSize: '11px', fontWeight: 600, color: '#059669' }}>Selesai</div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#10b981', margin: '4px 0 2px' }}>{loanStats.selesai}</div>
           <div style={{ fontSize: '11px', color: '#94a3b8' }}>Aset sudah dikembalikan</div>
         </div>
       </div>
 
       {/* Main Table Card Container */}
       <div
-        className="card"
+        className="card page-table-card"
         style={{
           background: '#ffffff',
           borderRadius: '10px',
           border: '1px solid #eef2f6',
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
-          padding: '20px',
         }}
       >
         {/* Search & Filter Bar matching Screenshot 2 */}
-        <form onSubmit={(e) => e.preventDefault()} style={{ marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <form onSubmit={(e) => e.preventDefault()} className="page-filter-form">
           <select
             value={statusFilter}
             onChange={e => {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            style={{
-              height: '42px',
-              padding: '0 12px',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              background: '#f8fafc',
-              fontSize: '13px',
-              color: '#334155',
-              outline: 'none',
-              minWidth: '150px',
-            }}
+            className="page-filter-select"
           >
             <option value="">Semua Status</option>
             <option value="Menunggu">Menunggu Persetujuan</option>
@@ -410,60 +390,28 @@ export default function PeminjamanSayaPage() {
             <option value="Ditolak">Ditolak</option>
           </select>
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: '8px',
-              padding: '0 14px',
-              height: '42px',
-              flex: '1',
-              minWidth: '260px',
-            }}
-          >
-            <HiOutlineSearch style={{ color: '#94a3b8', fontSize: '18px', marginRight: '10px', flexShrink: 0 }} />
+          <div className="page-filter-search">
+            <HiOutlineSearch className="page-filter-search-icon" />
             <input
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Cari nomor, peminjam, unit, nama atau kode aset..."
-              style={{
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                width: '100%',
-                fontSize: '13px',
-                color: '#1e293b',
-              }}
+              className="page-filter-search-input"
             />
           </div>
 
           <button
             type="button"
             onClick={handleReset}
-            style={{
-              height: '42px',
-              padding: '0 16px',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              background: '#ffffff',
-              color: '#475569',
-              fontSize: '13px',
-              fontWeight: 500,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
+            className="btn btn-secondary page-filter-reset"
           >
             <HiOutlineRefresh /> Reset
           </button>
         </form>
 
-        {/* Table matching Screenshot 2 (8 columns) */}
-        <div className="table-responsive">
+        {/* Desktop Table View (>= 769px) */}
+        <div className="table-responsive loan-table-desktop">
           <table className="table" style={{ margin: 0, borderCollapse: 'collapse', width: '100%' }}>
             <thead>
               <tr style={{ background: '#0f223d' }}>
@@ -499,7 +447,7 @@ export default function PeminjamanSayaPage() {
                 loans.map((loan, index) => {
                   const itemNumber = (pagination.from || 1) + index;
                   return (
-                      <tr key={loan.id} onClick={() => openLoanDetail(loan)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Klik baris untuk melihat detail peminjaman">
+                    <tr key={loan.id} onClick={() => openLoanDetail(loan)} style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }} title="Klik baris untuk melihat detail peminjaman">
                       <td style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', padding: '12px 8px' }}>
                         {itemNumber}
                       </td>
@@ -515,7 +463,12 @@ export default function PeminjamanSayaPage() {
                         <div style={{ fontSize: '11px', color: '#64748b' }}>{loan.aset?.kode_aset}</div>
                       </td>
                       <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                        {formatDate(loan.tanggal_peminjaman)}
+                        <div>{formatDate(loan.tanggal_peminjaman || loan.created_at)}</div>
+                        {loan.created_at && formatTime(loan.created_at) && (
+                          <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                            {formatTime(loan.created_at)}
+                          </div>
+                        )}
                       </td>
                       <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
                         {loan.tanggal_rencana_kembali ? formatDate(loan.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}
@@ -540,6 +493,89 @@ export default function PeminjamanSayaPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View (<= 768px) - No Horizontal Scrolling! */}
+        <div className="mobile-data-list loan-mobile-list">
+          {loading && loans.length === 0 ? (
+            <div style={{ padding: '30px 10px', textAlign: 'center' }}>
+              <Loading message="Memuat data peminjaman..." />
+            </div>
+          ) : loans.length === 0 ? (
+            <div className="mobile-data-empty">
+              <HiOutlineInbox style={{ fontSize: '36px', color: '#94a3b8', marginBottom: '8px' }} />
+              <span>Tidak ada pengajuan peminjaman yang cocok.</span>
+            </div>
+          ) : (
+            loans.map((loan, index) => {
+              const itemNumber = (pagination.from || 1) + index;
+              return (
+                <div
+                  key={loan.id}
+                  className="mobile-data-card"
+                  onClick={() => openLoanDetail(loan)}
+                >
+                  <div className="mobile-data-card-header">
+                    <div className="mobile-data-card-id">
+                      <span className="mobile-data-card-num">#{itemNumber}</span>
+                      <strong className="mobile-data-card-code">{loan.nomor_peminjaman}</strong>
+                    </div>
+                    <div>{getStatusBadge(loan.status, loan.status_bast)}</div>
+                  </div>
+
+                  <div className="mobile-data-card-asset">
+                    <div className="mobile-data-card-asset-icon">
+                      <HiOutlineCube />
+                    </div>
+                    <div>
+                      <div className="mobile-data-card-asset-name">
+                        {loan.aset?.nama_aset || 'Aset tanpa nama'}
+                      </div>
+                      <div className="mobile-data-card-asset-sub">
+                        Kode: <strong>{loan.aset?.kode_aset || '-'}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mobile-data-card-grid">
+                    <div className="mobile-data-card-meta-item">
+                      <span className="mobile-data-card-meta-label">Peminjam</span>
+                      <span className="mobile-data-card-meta-value">{loan.nama_peminjam || '-'}</span>
+                    </div>
+                    <div className="mobile-data-card-meta-item">
+                      <span className="mobile-data-card-meta-label">Unit</span>
+                      <span className="mobile-data-card-meta-value">{loan.unit || '-'}</span>
+                    </div>
+                    <div className="mobile-data-card-meta-item">
+                      <span className="mobile-data-card-meta-label">Tgl Pinjam</span>
+                      <span className="mobile-data-card-meta-value">
+                        {formatDate(loan.tanggal_peminjaman || loan.created_at)}
+                      </span>
+                    </div>
+                    <div className="mobile-data-card-meta-item">
+                      <span className="mobile-data-card-meta-label">Rencana Kembali</span>
+                      <span className="mobile-data-card-meta-value">
+                        {loan.tanggal_rencana_kembali ? formatDate(loan.tanggal_rencana_kembali) : '-'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mobile-data-card-footer">
+                    <button
+                      type="button"
+                      className="btn btn-secondary mobile-data-card-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openLoanDetail(loan);
+                      }}
+                    >
+                      <HiOutlineEye /> Lihat Detail
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Footer info matching Screenshot 2 */}
@@ -599,7 +635,14 @@ export default function PeminjamanSayaPage() {
                 </div>
                 <div>
                   <span style={{ color: '#64748b' }}>Tanggal Pinjam:</span>
-                  <div style={{ fontWeight: 600 }}>{formatDate(selectedLoan.tanggal_peminjaman)}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {formatDate(selectedLoan.tanggal_peminjaman || selectedLoan.created_at)}
+                    {selectedLoan.created_at && formatTime(selectedLoan.created_at) && (
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 400, marginLeft: '6px' }}>
+                        ({formatTime(selectedLoan.created_at)})
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <span style={{ color: '#64748b' }}>Rencana Kembali:</span>
@@ -722,7 +765,7 @@ export default function PeminjamanSayaPage() {
         onSuccess={() => {
           setSuccessToast('Pengajuan peminjaman berhasil dibuat!');
           fetchLoans(1);
-          fetchAllForStats();
+          fetchLoanStats();
           setTimeout(() => setSuccessToast(''), 5000);
         }}
       />

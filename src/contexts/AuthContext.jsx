@@ -47,18 +47,26 @@ export function AuthProvider({ children }) {
         if (currentUser) {
           const role = String(currentUser.role || '').toLowerCase();
           if (!isAllowedRole(role)) {
-            throw new Error('Akun tidak memiliki role yang diizinkan untuk masuk.');
+            console.warn('Session verification failed: account role is not allowed.');
+            setToken('');
+            setUser(null);
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('auth_user');
+            return;
           }
           setUser(currentUser);
           localStorage.setItem('auth_user', JSON.stringify(currentUser));
         }
       } catch (err) {
-        // If 401 or role not allowed, clean up session
-        console.warn('Session verification failed:', err?.message || err);
-        setToken('');
-        setUser(null);
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          console.warn('Session verification failed:', err?.message || err);
+          setToken('');
+          setUser(null);
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('auth_user');
+        } else {
+          console.warn('Session verification is temporarily unavailable; keeping the saved session:', err?.message || err);
+        }
       } finally {
         setLoading(false);
       }

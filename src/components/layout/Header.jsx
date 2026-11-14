@@ -16,10 +16,10 @@ import LoanModal from '../ui/LoanModal';
 import MutationModal from '../ui/MutationModal';
 import InspectionModal from '../ui/InspectionModal';
 import NotificationDropdown from '../ui/NotificationDropdown';
-import { getApiBaseUrl } from '../../services/api';
+import { getApiBaseUrl, getStorageUrl } from '../../services/api';
 
 export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
-  const { user, logout, isAdmin, roleLabel } = useAuth();
+  const { user, logout, isAdmin, isOperator, roleLabel } = useAuth();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -47,22 +47,12 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
   }, []);
 
   const firstLetter = (user?.name || 'Operator').charAt(0).toUpperCase();
+  const profilePhotoUrl = user?.profile_photo_path ? getStorageUrl(user.profile_photo_path) : '';
 
   return (
     <>
-      <header
-        className={`header ${collapsed ? 'sidebar-collapsed' : ''}`}
-        style={{
-          background: 'var(--bg-card)',
-          borderBottom: '1px solid var(--gray-200)',
-          height: '64px',
-          padding: '0 20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+      <header className={`header ${collapsed ? 'sidebar-collapsed' : ''}`}>
+        <div className="header-left">
           {/* Mobile Hamburger Toggle Button */}
           <button
             type="button"
@@ -75,25 +65,17 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
             <HiOutlineMenu />
           </button>
 
-          <h1 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--gray-900)', margin: 0, whiteSpace: 'nowrap' }}>
+          <h1 className="header-brand-title">
             SIMA Operator
           </h1>
         </div>
 
-        <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="header-right">
           {/* Server Config Indicator */}
           <button
             type="button"
-            className="btn btn-secondary"
+            className="btn btn-secondary header-server-btn"
             onClick={() => setIsServerModalOpen(true)}
-            style={{
-              padding: '6px 10px',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              borderRadius: '8px',
-            }}
             title="Pengaturan Server API & LAN"
             id="btn-header-server-config"
           >
@@ -128,56 +110,29 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
           <NotificationDropdown />
 
           {/* Profile Dropdown */}
-          <div className="header-user-wrapper" ref={dropdownRef} style={{ position: 'relative' }}>
+          <div className="header-user-wrapper" ref={dropdownRef}>
             <button
               className="header-user"
               onClick={() => setDropdownOpen((prev) => !prev)}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '4px 6px',
-                borderRadius: '6px',
-              }}
               aria-expanded={dropdownOpen}
               id="profile-dropdown-btn"
             >
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '6px',
-                  background: 'linear-gradient(135deg, #1e3a8a, #2563eb)',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                {firstLetter}
+              <div className="header-avatar">
+                {profilePhotoUrl ? <img src={profilePhotoUrl} alt="" /> : firstLetter}
               </div>
 
-              <div className="user-info hide-on-mobile-sm" style={{ textAlign: 'left', lineHeight: 1.25 }}>
-                <div style={{ fontWeight: 600, fontSize: '13px', color: '#1e293b' }}>
+              <div className="user-info hide-on-mobile-sm">
+                <div className="user-info-name">
                   {user?.name || 'Operator'}
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>
+                <div className="user-info-role">
                   {roleLabel}
                 </div>
               </div>
 
               <HiOutlineChevronDown
+                className="header-chevron hide-on-mobile-sm"
                 style={{
-                  color: '#64748b',
-                  fontSize: '13px',
-                  marginLeft: '2px',
-                  transition: 'transform 0.2s',
                   transform: dropdownOpen ? 'rotate(180deg)' : 'none',
                 }}
               />
@@ -240,7 +195,7 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
                     <HiOutlineUserCircle style={{ fontSize: '15px', color: 'var(--primary-600)' }} />
                     <span>Profil Saya</span>
                   </button>
-                  <button
+                  {!isOperator && <button
                     type="button"
                     onClick={() => {
                       setDropdownOpen(false);
@@ -266,8 +221,7 @@ export default function Header({ collapsed, onToggle, theme, onThemeChange }) {
                   >
                     <HiOutlineServer style={{ fontSize: '15px', color: '#16a34a' }} />
                     <span>Pengaturan Server API</span>
-                  </button>
-
+                  </button>}
                   <button
                     type="button"
                     onClick={() => {

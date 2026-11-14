@@ -9,7 +9,6 @@ import {
   HiOutlineSwitchHorizontal,
   HiOutlineClipboardCheck,
   HiOutlineTrash,
-  HiOutlineUserCircle,
 } from 'react-icons/hi';
 import { MdFlight, MdHandshake } from 'react-icons/md';
 import { useAuth } from '../../contexts/AuthContext';
@@ -157,24 +156,12 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
             <span className="nav-text">Laporan</span>
           </NavLink>
           </>}
-
-          <div className="nav-section-title">AKUN</div>
-          <NavLink
-            to="/profil"
-            className={`nav-item ${isActive('/profil') ? 'active' : ''}`}
-            onClick={onCloseMobile}
-            title="Profil Saya"
-            id="nav-profil"
-          >
-            <span className="nav-icon"><HiOutlineUserCircle /></span>
-            <span className="nav-text">Profil Saya</span>
-          </NavLink>
         </nav>
 
         {/* User Card & Tombol Keluar di Bagian Bawah */}
         <div className="sidebar-bottom">
           <div style={{ padding: '8px 12px', fontSize: '0.75rem', color: 'var(--gray-500)', borderTop: '1px solid var(--gray-200)', marginBottom: '8px' }}>
-            <div style={{ fontWeight: 600, color: 'var(--gray-800)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.name || 'Operator'}
             </div>
             <div style={{ textTransform: 'capitalize', color: 'var(--primary-600)', fontSize: '0.7rem' }}>

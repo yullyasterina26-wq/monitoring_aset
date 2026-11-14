@@ -60,7 +60,13 @@ export default function LoginPage() {
   const handleRequiresLoginAction = (action, asset) => {
     if (action && asset?.id) {
       sessionStorage.setItem('pending_operator_action', JSON.stringify({ action, asset }));
-      setError(`Login untuk melanjutkan ${action === 'loan' ? 'pengajuan peminjaman' : action === 'mutation' ? 'pengajuan mutasi' : 'pemeriksaan'} aset ${asset.kode_aset || asset.nama_aset}.`);
+      const actionLabels = {
+        loan: 'pengajuan peminjaman',
+        mutation: 'pengajuan mutasi',
+        inspection: 'pemeriksaan',
+        deletion: 'pengajuan penghapusan',
+      };
+      setError(`Login untuk melanjutkan ${actionLabels[action] || 'tindakan'} aset ${asset.kode_aset || asset.nama_aset}.`);
       return;
     }
     setError('Aksi ini memerlukan autentikasi. Silakan login dengan akun Operator atau Admin aktif.');
@@ -68,11 +74,31 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      <div className="login-card" style={{ maxWidth: '420px', width: '100%', margin: '0 auto' }}>
+      <section className="login-showcase" aria-label="SIMA Operasional">
+        <div className="login-showcase-brand">
+          <span className="login-showcase-brand-icon"><MdFlight /></span>
+          <span>SIMA <strong>Operasional</strong></span>
+        </div>
+        <div className="login-showcase-content">
+          <span className="login-showcase-eyebrow">PORTAL OPERASIONAL ASET</span>
+          <h1>Kelola aset, <span>lebih mudah.</span></h1>
+          <p>Platform operasional untuk mendukung pengelolaan dan pemantauan aset Bandara Supadio.</p>
+          <div className="login-showcase-visual" aria-hidden="true">
+            <div className="login-showcase-orbit login-showcase-orbit-one" />
+            <div className="login-showcase-orbit login-showcase-orbit-two" />
+            <div className="login-showcase-plane"><MdFlight /></div>
+            <div className="login-showcase-caption">Bandara Supadio <span>•</span> Airport Technology</div>
+          </div>
+        </div>
+        <div className="login-showcase-footer">Sistem Informasi Manajemen Aset</div>
+      </section>
+
+      <section className="login-panel" aria-label="Masuk ke SIMA">
+        <div className="login-card">
         <div className="login-logo">
-          <div className="logo-icon"><MdFlight /></div>
-          <h1>SIMA Operator</h1>
-          <p>Sistem Operasional Manajemen Aset<br />Bandara Supadio - Airport Technology</p>
+          <span className="login-form-eyebrow">SELAMAT DATANG</span>
+          <h2>Masuk ke akun Anda</h2>
+          <p>Gunakan akun Operator atau Admin yang terdaftar.</p>
         </div>
 
         {/* Server Connection Bar */}
@@ -225,10 +251,11 @@ export default function LoginPage() {
         >
           <HiOutlineInformationCircle style={{ fontSize: '16px', flexShrink: 0, marginTop: '1px', color: 'var(--primary-600)' }} />
           <span>
-            Hanya akun <strong>Operator</strong> atau <strong>Admin</strong> yang aktif yang dapat masuk. Akun dengan peran biasa (user) perlu diubah oleh Super Admin.
+            Gunakan email dan kata sandi akun <strong>Operator</strong> atau <strong>Admin</strong> aktif yang diberikan administrator. Akun dengan peran biasa (user) belum memiliki akses ke aplikasi ini.
           </span>
         </div>
       </div>
+      </section>
 
       {/* Public QR Scanner Modal */}
       <QrScannerModal
@@ -238,6 +265,7 @@ export default function LoginPage() {
         onSelectAssetForLoan={(asset) => handleRequiresLoginAction('loan', asset)}
         onSelectAssetForMutation={(asset) => handleRequiresLoginAction('mutation', asset)}
         onSelectAssetForInspection={(asset) => handleRequiresLoginAction('inspection', asset)}
+        onSelectAssetForDeletion={(asset) => handleRequiresLoginAction('deletion', asset)}
       />
 
       {/* Public Asset Detail Modal */}

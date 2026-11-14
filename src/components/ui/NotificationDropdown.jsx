@@ -2,12 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   HiOutlineBell,
-  HiOutlineCheck,
   HiOutlineCheckCircle,
-  HiOutlineClock,
-  HiOutlineExclamationCircle,
+  HiOutlineClipboardCheck,
   HiOutlineSwitchHorizontal,
-  HiOutlineX,
+  HiOutlineTrash,
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
 import api from '../../services/api';
@@ -19,12 +17,23 @@ export default function NotificationDropdown() {
   const navigate = useNavigate();
 
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [readIds, setReadIds] = useState(() => JSON.parse(localStorage.getItem('read_notifications') || '[]'));
+  const [serverUnreadCount, setServerUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('semua'); // 'semua' | 'peminjaman' | 'mutasi'
+  const [activeFilter, setActiveFilter] = useState('semua');
   const [loading, setLoading] = useState(false);
+  const [notificationError, setNotificationError] = useState('');
 
   const dropdownRef = useRef(null);
+  const notificationRequestInFlight = useRef(false);
+  const notificationsRef = useRef(notifications);
+  notificationsRef.current = notifications;
+  const unreadNotifications = notifications.filter((item) => !item.serverReadAt && !readIds.includes(item.id));
+  const unreadCount = serverUnreadCount + unreadNotifications.filter((item) => !item.serverId).length;
+  const unreadCountsByType = unreadNotifications.reduce((counts, item) => {
+    counts[item.type] = (counts[item.type] || 0) + 1;
+    return counts;
+  }, {});
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -38,19 +47,26 @@ export default function NotificationDropdown() {
   }, []);
 
   // Fetch loans and mutations to build real-time notifications
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async ({ includeTransactions = false } = {}) => {
     if (!isAuthenticated) return;
+    if (notificationRequestInFlight.current) return;
+    notificationRequestInFlight.current = true;
     setLoading(true);
+    setNotificationError('');
 
     try {
-      const [loanRes, mutRes, notificationRes] = await Promise.all([
-        api.get('/loans', { params: { per_page: 50 } }).catch(() => ({ data: [] })),
-        api.get('/mutations', { params: { per_page: 50 } }).catch(() => ({ data: [] })),
-        api.get('/notifications').catch(() => ({ data: { notifications: [] } })),
+      const [loanRes, mutRes, inspectionRes, deletionRes, notificationRes] = await Promise.all([
+        includeTransactions ? api.get('/loans', { params: { per_page: 50 } }).catch(() => ({ data: [] })) : { data: [] },
+        includeTransactions ? api.get('/mutations', { params: { per_page: 50 } }).catch(() => ({ data: [] })) : { data: [] },
+        includeTransactions ? api.get('/operasional/pemeriksaan', { params: { per_page: 50 } }).catch(() => ({ data: [] })) : { data: [] },
+        includeTransactions ? api.get('/asset-deletion-requests', { params: { per_page: 50 } }).catch(() => ({ data: { requests: { data: [] } } })) : { data: { requests: { data: [] } } },
+        api.get('/notifications'),
       ]);
 
       const loanList = loanRes.data?.data || loanRes.data || [];
       const mutList = mutRes.data?.data || mutRes.data || [];
+      const inspectionList = inspectionRes.data?.data || inspectionRes.data || [];
+      const deletionList = deletionRes.data?.requests?.data || [];
 
       // Stored read notification IDs
       const readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
@@ -173,13 +189,64 @@ export default function NotificationDropdown() {
         }
       });
 
+      inspectionList.forEach((inspection) => {
+        const assetName = inspection.aset?.nama_aset || `Aset #${inspection.aset_id}`;
+        const assetCode = inspection.aset?.kode_aset || '';
+        const condition = inspection.kondisi_baru || inspection.kondisi;
+        const details = [
+          condition ? `Kondisi hasil: ${condition}.` : '',
+          inspection.keterangan ? `Keterangan: ${inspection.keterangan}` : '',
+        ].filter(Boolean).join(' ');
+
+        items.push({
+          id: `inspection_${inspection.id}_Selesai`,
+          type: 'pemeriksaan',
+          title: 'Pemeriksaan aset dicatat',
+          message: `Pemeriksaan ${assetName} (${assetCode}) telah dicatat.${details ? ` ${details}` : ''}`,
+          badgeText: 'Selesai',
+          badgeType: 'success',
+          priority: 'normal',
+          timestamp: inspection.updated_at || inspection.created_at,
+          link: '/pemeriksaan',
+          entityType: 'inspection',
+          entityId: inspection.id,
+          status: 'Selesai',
+        });
+      });
+
+      deletionList.forEach((deletion) => {
+        const assetName = deletion.aset?.nama_aset || `Aset #${deletion.aset_id}`;
+        const assetCode = deletion.aset?.kode_aset || '';
+        const details = [
+          deletion.tempat_pembuangan ? `Tempat pembuangan: ${deletion.tempat_pembuangan}.` : '',
+          deletion.alasan ? `Alasan: ${deletion.alasan}` : '',
+        ].filter(Boolean).join(' ');
+
+        items.push({
+          id: `deletion_${deletion.id}_${deletion.status}`,
+          type: 'penghapusan',
+          title: 'Pengajuan penghapusan aset',
+          message: `Pengajuan penghapusan ${assetName} (${assetCode})${details ? `. ${details}` : ''}`,
+          badgeText: deletion.status || 'Menunggu',
+          badgeType: deletion.status === 'Ditolak' ? 'danger' : deletion.status === 'Disetujui' ? 'success' : 'warning',
+          priority: 'normal',
+          timestamp: deletion.updated_at || deletion.created_at,
+          link: '/penghapusan',
+          entityType: 'asset_deletion',
+          entityId: deletion.id,
+          status: deletion.status || 'Menunggu',
+        });
+      });
+
       const serverItems = (notificationRes.data?.notifications || []).map((notification) => {
         const data = notification.data || {};
-        const type = data.module === 'loans' ? 'peminjaman'
-          : data.module === 'mutations' ? 'mutasi'
-            : data.module === 'asset_deletion' ? 'penghapusan'
-              : data.module === 'bast' ? 'bast'
-                : data.module === 'inspections' ? 'pemeriksaan' : 'lainnya';
+        const module = String(data.module || '').toLowerCase();
+        const title = data.title || '';
+        const type = module === 'loans' ? 'peminjaman'
+          : module === 'mutations' ? 'mutasi'
+            : ['asset_deletion', 'deletions'].includes(module) ? 'penghapusan'
+              : module === 'bast' ? 'bast'
+                : module === 'inspections' || (module === 'assets' && /pemeriksaan/i.test(title)) ? 'pemeriksaan' : 'lainnya';
         const link = type === 'peminjaman' ? '/peminjaman'
           : type === 'mutasi' ? '/mutasi'
             : type === 'penghapusan' ? '/penghapusan'
@@ -196,7 +263,7 @@ export default function NotificationDropdown() {
           title: data.title || 'Notifikasi transaksi',
           message: [data.actor, data.description].filter(Boolean).join(' — '),
           badgeText: data.status || 'Transaksi',
-          badgeType: /ditolak|batal|perbaikan/i.test(data.title || '') ? 'danger' : 'success',
+          badgeType: /ditolak|batal|perbaikan/i.test(title) ? 'danger' : 'success',
           priority: 'high',
           timestamp: notification.created_at,
           link,
@@ -208,23 +275,38 @@ export default function NotificationDropdown() {
         .filter((item) => item.entityType && item.entityId && item.status)
         .map((item) => `${item.entityType}_${item.entityId}_${item.status}`));
       const fallbackItems = items.filter((item) => {
-        const match = item.id.match(/^(loan|mut)_(\d+)_(.+)$/);
+        const match = item.id.match(/^(loan|mut|inspection|deletion)_(\d+)_(.+)$/);
         if (!match) return true;
-        const entity = match[1] === 'loan' ? 'loan' : 'mutation';
+        const entity = {
+          loan: 'loan',
+          mut: 'mutation',
+          inspection: 'inspection',
+          deletion: 'asset_deletion',
+        }[match[1]];
         return !persistedTransactions.has(`${entity}_${match[2]}_${match[3]}`);
       });
       items.splice(0, items.length, ...fallbackItems, ...serverItems);
 
+      if (!includeTransactions) {
+        const currentTransactionItems = notificationsRef.current.filter((item) =>
+          /^(loan|mut|inspection|deletion)_/.test(item.id),
+        );
+        const currentIds = new Set(items.map((item) => item.id));
+        items.push(...currentTransactionItems.filter((item) => !currentIds.has(item.id)));
+      }
+
       // Sort newest first
       items.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
-      // Calculate unread count
-      const unread = items.filter((item) => !item.serverReadAt && !readIds.includes(item.id)).length;
       setNotifications(items);
-      setUnreadCount(unread);
+      setReadIds(readIds);
+      setServerUnreadCount(notificationRes.data?.unread_count
+        ?? serverItems.filter((item) => !item.serverReadAt).length);
     } catch (err) {
       console.warn('Error fetching notifications:', err);
+      setNotificationError(err.response?.data?.message || 'Notifikasi gagal dimuat. Periksa koneksi lalu coba lagi.');
     } finally {
+      notificationRequestInFlight.current = false;
       setLoading(false);
     }
   }, [isAuthenticated]);
@@ -240,21 +322,40 @@ export default function NotificationDropdown() {
     };
   }, [fetchNotifications]);
 
-  const markAllAsRead = () => {
-    const allIds = notifications.map((n) => n.id);
+  const markAllAsRead = async () => {
+    const allIds = [...new Set([...readIds, ...notifications.map((n) => n.id)])];
     localStorage.setItem('read_notifications', JSON.stringify(allIds));
-    setUnreadCount(0);
-    api.post('/notifications/read-all').catch(() => {});
+    setReadIds(allIds);
+    setServerUnreadCount(0);
+    setNotificationError('');
+    try {
+      await api.post('/notifications/read-all');
+    } catch (err) {
+      setNotificationError(err.response?.data?.message || 'Notifikasi gagal ditandai sudah dibaca.');
+      fetchNotifications();
+    }
   };
 
-  const handleItemClick = (item) => {
-    // Mark as read
-    const readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
-    if (!readIds.includes(item.id)) {
-      readIds.push(item.id);
-      localStorage.setItem('read_notifications', JSON.stringify(readIds));
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-      if (item.serverId) api.post(`/notifications/${item.serverId}/read`).catch(() => {});
+  const handleItemClick = async (item) => {
+    const isUnread = !item.serverReadAt && !readIds.includes(item.id);
+    if (isUnread) {
+      const updatedReadIds = [...readIds, item.id];
+      localStorage.setItem('read_notifications', JSON.stringify(updatedReadIds));
+      setReadIds(updatedReadIds);
+      if (item.serverId) {
+        setServerUnreadCount((count) => Math.max(0, count - 1));
+        setNotificationError('');
+        try {
+          await api.post(`/notifications/${item.serverId}/read`);
+        } catch (err) {
+          const restoredReadIds = updatedReadIds.filter((id) => id !== item.id);
+          localStorage.setItem('read_notifications', JSON.stringify(restoredReadIds));
+          setReadIds(restoredReadIds);
+          setServerUnreadCount((count) => count + 1);
+          setNotificationError(err.response?.data?.message || 'Notifikasi gagal ditandai sudah dibaca.');
+          return;
+        }
+      }
     }
     setIsOpen(false);
     if (item.link) {
@@ -265,10 +366,10 @@ export default function NotificationDropdown() {
   const filteredNotifications = notifications.filter((item) => {
     if (activeFilter === 'peminjaman') return item.type === 'peminjaman';
     if (activeFilter === 'mutasi') return item.type === 'mutasi';
+    if (activeFilter === 'pemeriksaan') return item.type === 'pemeriksaan';
+    if (activeFilter === 'penghapusan') return item.type === 'penghapusan';
     return true;
   });
-
-  const readIds = JSON.parse(localStorage.getItem('read_notifications') || '[]');
 
   return (
     <div className="header-notification-wrapper" ref={dropdownRef} style={{ position: 'relative' }}>
@@ -276,7 +377,11 @@ export default function NotificationDropdown() {
       <button
         type="button"
         className="btn btn-secondary notification-trigger"
-        onClick={() => { setIsOpen((prev) => !prev); fetchNotifications(); }}
+        onClick={() => {
+          const willOpen = !isOpen;
+          setIsOpen(willOpen);
+          if (willOpen) fetchNotifications({ includeTransactions: true });
+        }}
         style={{
           position: 'relative',
           padding: '6px 10px',
@@ -286,7 +391,7 @@ export default function NotificationDropdown() {
           gap: '4px',
           borderRadius: '8px',
         }}
-        title="Pemberitahuan Aktivitas Peminjaman & Mutasi"
+        title="Pemberitahuan Aktivitas Operasional"
         aria-label="Notifikasi Operasional"
         id="btn-header-notification"
       >
@@ -396,67 +501,70 @@ export default function NotificationDropdown() {
           <div
             className="notification-tabs"
             style={{
-              display: 'flex',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
               borderBottom: '1px solid var(--gray-100)',
-              padding: '4px 12px',
+              padding: '6px 10px',
               background: 'var(--bg-card)',
-              gap: '6px',
+              gap: '4px',
             }}
           >
-            <button
-              type="button"
-              className="notification-tab"
-              onClick={() => setActiveFilter('semua')}
-              style={{
-                border: 'none',
-                background: activeFilter === 'semua' ? 'var(--primary-50)' : 'transparent',
-                color: activeFilter === 'semua' ? 'var(--primary-700)' : 'var(--gray-600)',
-                fontWeight: activeFilter === 'semua' ? 700 : 500,
-                fontSize: '0.75rem',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-              }}
-            >
-              Semua ({notifications.length})
-            </button>
-
-            <button
-              type="button"
-              className="notification-tab"
-              onClick={() => setActiveFilter('peminjaman')}
-              style={{
-                border: 'none',
-                background: activeFilter === 'peminjaman' ? 'var(--primary-50)' : 'transparent',
-                color: activeFilter === 'peminjaman' ? 'var(--primary-700)' : 'var(--gray-600)',
-                fontWeight: activeFilter === 'peminjaman' ? 700 : 500,
-                fontSize: '0.75rem',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-              }}
-            >
-              Peminjaman
-            </button>
-
-            <button
-              type="button"
-              className="notification-tab"
-              onClick={() => setActiveFilter('mutasi')}
-              style={{
-                border: 'none',
-                background: activeFilter === 'mutasi' ? 'var(--primary-50)' : 'transparent',
-                color: activeFilter === 'mutasi' ? 'var(--primary-700)' : 'var(--gray-600)',
-                fontWeight: activeFilter === 'mutasi' ? 700 : 500,
-                fontSize: '0.75rem',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-              }}
-            >
-              Mutasi
-            </button>
+            {[
+              ['semua', 'Semua'],
+              ['peminjaman', 'Pinjam'],
+              ['mutasi', 'Mutasi'],
+              ['pemeriksaan', 'Periksa'],
+              ['penghapusan', 'Hapus'],
+            ].map(([filter, label]) => (
+              <button
+                key={filter}
+                type="button"
+                className="notification-tab"
+                onClick={() => setActiveFilter(filter)}
+                aria-pressed={activeFilter === filter}
+                style={{
+                  border: 'none',
+                  background: activeFilter === filter ? 'var(--primary-50)' : 'transparent',
+                  color: activeFilter === filter ? 'var(--primary-700)' : 'var(--gray-600)',
+                  fontWeight: activeFilter === filter ? 700 : 500,
+                  fontSize: '0.7rem',
+                  padding: '6px 2px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {label}
+                {(filter === 'semua' ? unreadCount : unreadCountsByType[filter] || 0) > 0 && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: '15px',
+                      height: '15px',
+                      marginLeft: '3px',
+                      padding: '0 4px',
+                      borderRadius: '8px',
+                      background: activeFilter === filter ? 'var(--primary-600)' : 'var(--primary-100)',
+                      color: activeFilter === filter ? '#ffffff' : 'var(--primary-700)',
+                      fontSize: '9px',
+                      fontWeight: 700,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {filter === 'semua' ? unreadCount : unreadCountsByType[filter]}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
+
+          {notificationError && (
+            <div role="alert" style={{ padding: '8px 12px', color: '#b91c1c', background: '#fef2f2', fontSize: '0.75rem' }}>
+              {notificationError}
+            </div>
+          )}
 
           {/* Notification List Body */}
           <div className="notification-list" style={{ overflowY: 'auto', flex: 1, padding: '4px 0', background: 'var(--bg-card)' }}>
@@ -471,7 +579,7 @@ export default function NotificationDropdown() {
                   Tidak ada pemberitahuan baru
                 </p>
                 <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-                  Seluruh status peminjaman dan mutasi telah Anda tinjau.
+                  Belum ada aktivitas pada pilihan ini.
                 </p>
               </div>
             ) : (
@@ -505,8 +613,16 @@ export default function NotificationDropdown() {
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        background: item.type === 'peminjaman' ? '#dbeafe' : '#fef3c7',
-                        color: item.type === 'peminjaman' ? '#1e40af' : '#b45309',
+                        background:
+                          item.type === 'peminjaman' ? '#dbeafe'
+                            : item.type === 'mutasi' ? '#fef3c7'
+                              : item.type === 'pemeriksaan' ? '#dcfce7'
+                                : item.type === 'penghapusan' ? '#fee2e2' : '#e0f2fe',
+                        color:
+                          item.type === 'peminjaman' ? '#1e40af'
+                            : item.type === 'mutasi' ? '#b45309'
+                              : item.type === 'pemeriksaan' ? '#15803d'
+                                : item.type === 'penghapusan' ? '#b91c1c' : '#0369a1',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -515,7 +631,10 @@ export default function NotificationDropdown() {
                         marginTop: '2px',
                       }}
                     >
-                      {item.type === 'peminjaman' ? <MdHandshake /> : <HiOutlineSwitchHorizontal />}
+                      {item.type === 'peminjaman' ? <MdHandshake />
+                        : item.type === 'mutasi' ? <HiOutlineSwitchHorizontal />
+                          : item.type === 'pemeriksaan' ? <HiOutlineClipboardCheck />
+                            : item.type === 'penghapusan' ? <HiOutlineTrash /> : <HiOutlineBell />}
                     </div>
 
                     {/* Content */}

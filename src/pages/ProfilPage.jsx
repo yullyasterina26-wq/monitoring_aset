@@ -2,20 +2,27 @@ import { useEffect, useState } from 'react';
 import { HiOutlineUserCircle, HiOutlineLockClosed, HiOutlineShieldCheck } from 'react-icons/hi';
 import { Loading, formatDateTime } from '../components/ui/Shared';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import api, { getStorageUrl } from '../services/api';
 
 export default function ProfilPage() {
-  const { user, refreshProfile, roleLabel } = useAuth();
+  const { user, refreshProfile, roleLabel, isOperator } = useAuth();
   const [profile, setProfile] = useState(user);
   const [profileForm, setProfileForm] = useState({ name: user?.name || '', username: user?.username || '', email: user?.email || '' });
   const [loading, setLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [photoSaving, setPhotoSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => () => {
+    if (photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +60,28 @@ export default function ProfilPage() {
     }
   };
 
+  const uploadProfilePhoto = async () => {
+    if (!photoFile) return;
+    setError('');
+    setSuccess('');
+    setPhotoSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append('photo', photoFile);
+      const { data } = await api.post('/me/profile-photo', formData);
+      const updatedProfile = await refreshProfile();
+      setProfile(updatedProfile || data?.user);
+      setPhotoFile(null);
+      setPhotoPreview('');
+      setSuccess(data?.message || 'Foto profil berhasil diperbarui.');
+    } catch (requestError) {
+      const errors = requestError.response?.data?.errors;
+      setError(errors ? Object.values(errors).flat().join(' ') : (requestError.response?.data?.message || 'Foto profil gagal diunggah.'));
+    } finally {
+      setPhotoSaving(false);
+    }
+  };
+
   const changePassword = async (event) => {
     event.preventDefault();
     setError('');
@@ -61,8 +90,8 @@ export default function ProfilPage() {
       setError('Konfirmasi password baru belum sama.');
       return;
     }
-    if (newPassword.length < 8) {
-      setError('Password baru minimal 8 karakter.');
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,}$/.test(newPassword)) {
+      setError('Password baru harus minimal 8 karakter dan berisi huruf besar, huruf kecil, angka, serta simbol.');
       return;
     }
 
@@ -116,6 +145,42 @@ export default function ProfilPage() {
               <h2 style={{ margin: 0, fontSize: '1rem' }}>Detail Akun</h2>
             </div>
             <div className="card-body">
+              {isOperator && (
+                <div className="profile-photo-upload">
+                  <div className="profile-photo-preview">
+                    {photoPreview || profile?.profile_photo_path ? (
+                      <img
+                        src={photoPreview || getStorageUrl(profile.profile_photo_path)}
+                        alt="Foto profil"
+                      />
+                    ) : (
+                      <span>{(profile?.name || user?.name || 'O').charAt(0).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div className="profile-photo-controls">
+                    <strong>Foto Profil</strong>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      aria-label="Pilih foto profil"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        setPhotoFile(file);
+                        setPhotoPreview(file ? URL.createObjectURL(file) : '');
+                      }}
+                    />
+                    <small>JPG, PNG, atau WebP. Maksimal 5 MB.</small>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={uploadProfilePhoto}
+                      disabled={!photoFile || photoSaving}
+                    >
+                      {photoSaving ? 'Mengunggah...' : 'Simpan Foto'}
+                    </button>
+                  </div>
+                </div>
+              )}
               {details.map(([label, value]) => (
                 <div key={label} style={{ display: 'grid', gridTemplateColumns: '125px 1fr', gap: '10px', padding: '10px 0', borderBottom: '1px solid var(--gray-100)' }}>
                   <span style={{ color: 'var(--gray-500)', fontSize: '0.85rem' }}>{label}</span>
@@ -138,7 +203,6 @@ export default function ProfilPage() {
               <div className="form-group" style={{ marginBottom: '14px' }}>
                 <label htmlFor="profile-username">Username</label>
                 <input id="profile-username" className="form-control" type="text" maxLength={100} pattern="[A-Za-z0-9._-]+" value={profileForm.username} onChange={(event) => setProfileForm((form) => ({ ...form, username: event.target.value }))} required />
-                <small style={{ color: 'var(--gray-500)' }}>Gunakan huruf, angka, titik, garis bawah, atau tanda hubung.</small>
               </div>
               <div className="form-group" style={{ marginBottom: '18px' }}>
                 <label htmlFor="profile-email">Email</label>
@@ -163,11 +227,18 @@ export default function ProfilPage() {
               <div className="form-group" style={{ marginBottom: '14px' }}>
                 <label htmlFor="new-password">Password Baru</label>
                 <input id="new-password" className="form-control" type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
-                <small style={{ color: 'var(--gray-500)' }}>Minimal 8 karakter.</small>
+                <small style={{ color: 'var(--gray-500)' }}>Gunakan minimal 8 karakter, huruf besar dan kecil, angka, serta simbol.</small>
               </div>
               <div className="form-group" style={{ marginBottom: '18px' }}>
                 <label htmlFor="confirm-password">Konfirmasi Password Baru</label>
-                <input id="confirm-password" className="form-control" type="password" autoComplete="new-password" minLength={8} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required />
+                <input id="confirm-password" className="form-control" type="password" autoComplete="new-password" minLength={8} value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} onPaste={(event) => {
+                  event.preventDefault();
+                  const input = event.currentTarget;
+                  const pastedText = event.clipboardData.getData('text');
+                  const start = input.selectionStart ?? passwordConfirmation.length;
+                  const end = input.selectionEnd ?? passwordConfirmation.length;
+                  setPasswordConfirmation(`${passwordConfirmation.slice(0, start)}${pastedText}${passwordConfirmation.slice(end)}`);
+                }} required />
               </div>
               <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'var(--primary-50)', color: 'var(--primary-800)', fontSize: '0.78rem', marginBottom: '16px' }}>
                 <HiOutlineShieldCheck style={{ marginRight: '6px', verticalAlign: 'middle' }} />Password saat ini diperlukan untuk mengonfirmasi perubahan.

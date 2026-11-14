@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { HiOutlineCube, HiOutlineCheck } from 'react-icons/hi';
-import { Badge, Loading } from './Shared';
+import { Badge, kondisiBadge, Loading } from './Shared';
 
 export default function AssetTable({
   assets = [],
@@ -72,7 +72,7 @@ export default function AssetTable({
             <p style={{ margin: 0 }}>Tidak ada aset tersedia.</p>
           </div>
         ) : (
-          <div className="table-responsive">
+          <div className="table-responsive asset-table-desktop">
             <table className="table table-hover" style={{ margin: 0 }}>
               <thead>
                 <tr>
@@ -139,6 +139,41 @@ export default function AssetTable({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {!loading && assets.length > 0 && (
+          <div className="asset-mobile-list">
+            {assets.map((asset) => (
+              <article className="asset-mobile-card" key={asset.id}>
+                <button
+                  type="button"
+                  className="asset-mobile-card-main"
+                  onClick={() => onViewDetail?.(asset)}
+                  disabled={!onViewDetail}
+                >
+                  <span className="asset-mobile-code">{asset.kode_aset || 'Tanpa kode'}</span>
+                  <strong className="asset-mobile-name">{asset.nama_aset || 'Aset tanpa nama'}</strong>
+                  <span className="asset-mobile-meta">
+                    {asset.lokasi || 'Lokasi belum dicatat'}
+                  </span>
+                  <span className="asset-mobile-badges">
+                    <Badge type={kondisiBadge(asset.kondisi)}>{asset.kondisi || 'Kondisi belum dicatat'}</Badge>
+                    <Badge type="info">
+                      {asset.kategori?.nama_kategori || asset.kategori || 'Perangkat'}
+                    </Badge>
+                  </span>
+                </button>
+                {onSelectAsset && (
+                  <button
+                    type="button"
+                    className="btn btn-primary asset-mobile-action"
+                    onClick={() => onSelectAsset(asset)}
+                  >
+                    <HiOutlineCheck /> Pinjam
+                  </button>
+                )}
+              </article>
+            ))}
           </div>
         )}
       </div>

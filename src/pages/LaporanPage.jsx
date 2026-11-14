@@ -6,9 +6,47 @@ import {
   HiOutlineViewGrid,
 } from 'react-icons/hi';
 import { MdFlight } from 'react-icons/md';
-import { Loading, Badge, formatDate, formatDateTime } from '../components/ui/Shared';
+import { useAuth } from '../contexts/AuthContext';
+import { Loading, Badge, formatDate, formatTime } from '../components/ui/Shared';
+import ProtectedInspectionPhoto from '../components/ui/ProtectedInspectionPhoto';
+import ImagePreview from '../components/ui/ImagePreview';
 import api from '../services/api';
 import useDebouncedValue from '../hooks/useDebouncedValue';
+
+function ProtectedDeletionPhoto({ requestId }) {
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = '';
+    api.get(`/asset-deletion-requests/${requestId}/photo`, { responseType: 'blob' })
+      .then(({ data }) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(data);
+        setPhotoUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [requestId]);
+
+  if (failed) return <span style={{ color: 'var(--gray-500)', fontSize: '0.8rem' }}>Foto tidak dapat dimuat.</span>;
+  if (!photoUrl) return <span style={{ color: 'var(--gray-500)', fontSize: '0.8rem' }}>Memuat foto...</span>;
+
+  return (
+    <ImagePreview
+      src={photoUrl}
+      alt="Foto bukti penghapusan"
+      imageStyle={{ display: 'block', maxWidth: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--gray-200)' }}
+    />
+  );
+}
 
 const returnDateMonitor = (loan) => {
   if (!loan.tanggal_rencana_kembali) return { label: 'Tanpa Tanggal Kembali', overdue: false };
@@ -26,6 +64,7 @@ const returnDateMonitor = (loan) => {
 };
 
 export default function LaporanPage() {
+  const { isAdmin } = useAuth();
   const [loans, setLoans] = useState([]);
   const [mutations, setMutations] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -42,6 +81,8 @@ export default function LaporanPage() {
   const [endDate, setEndDate] = useState('');
   const [selectedLoan, setSelectedLoan] = useState(null);
   const [selectedMutation, setSelectedMutation] = useState(null);
+  const [selectedInspection, setSelectedInspection] = useState(null);
+  const [selectedDeletion, setSelectedDeletion] = useState(null);
 
   const fetchLaporan = useCallback(() => {
     setLoading(true);
@@ -115,6 +156,10 @@ export default function LaporanPage() {
     penghapusan: 'Penghapusan',
   };
   const reportLabel = reportLabels[reportType];
+  const inspectionNumber = (item) => {
+    const yearMonth = item.created_at?.slice(0, 7).replace('-', '') || '000000';
+    return item.nomor_pemeriksaan || `PMR-${yearMonth}-${String(item.id).padStart(3, '0')}`;
+  };
   const deletionRequestNumber = (item) => {
     const yearMonth = item.created_at?.slice(0, 7).replace('-', '') || '000000';
     return `HPS-${yearMonth}-${String(item.id).padStart(3, '0')}`;
@@ -153,6 +198,31 @@ export default function LaporanPage() {
       default:
         return <Badge type="default">{status || '-'}</Badge>;
     }
+  };
+
+  const getInspectionStatusBadge = () => (
+    <span style={{ background: '#dcfce7', color: '#166534', padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+      Selesai
+    </span>
+  );
+
+  const selectMobileReport = (type) => {
+    setReportType(type);
+    setStatusFilter('');
+    setSearch('');
+    setStartDate('');
+    setEndDate('');
+    setSelectedLoan(null);
+    setSelectedMutation(null);
+    setSelectedInspection(null);
+    setSelectedDeletion(null);
+  };
+
+  const openMobileReportItem = (item) => {
+    if (reportType === 'peminjaman') setSelectedLoan(item);
+    else if (reportType === 'mutasi') setSelectedMutation(item);
+    else if (reportType === 'pemeriksaan') setSelectedInspection(item);
+    else setSelectedDeletion(item);
   };
 
   return (
@@ -217,7 +287,7 @@ export default function LaporanPage() {
 
       {/* Card Container matching Screenshot 4 */}
       <div
-        className="card"
+        className="card report-print-card"
         style={{
           background: '#ffffff',
           borderRadius: '10px',
@@ -226,10 +296,31 @@ export default function LaporanPage() {
           padding: '20px',
         }}
       >
+        {!isAdmin && (
+          <nav className="report-mobile-menu no-print" aria-label="Pilih jenis laporan">
+            {[
+              ['peminjaman', 'Peminjaman'],
+              ['mutasi', 'Mutasi'],
+              ['pemeriksaan', 'Pemeriksaan'],
+              ['penghapusan', 'Penghapusan'],
+            ].map(([type, label]) => (
+              <button
+                key={type}
+                type="button"
+                className={reportType === type ? 'active' : ''}
+                aria-pressed={reportType === type}
+                onClick={() => selectMobileReport(type)}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
+
         {/* Filter Bar matching Screenshot 4 */}
-        <form onSubmit={(e) => e.preventDefault()} className="no-print" style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <form onSubmit={(e) => e.preventDefault()} className={`no-print report-filter-form${isAdmin ? '' : ' operator-report-filters'}`} style={{ marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Dropdown 1 with icon */}
-          <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 10px', height: '42px' }}>
+          <div className={isAdmin ? '' : 'operator-report-type-control'} style={{ display: 'flex', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '0 10px', height: '42px' }}>
             <HiOutlineViewGrid style={{ color: '#64748b', fontSize: '16px', marginRight: '6px' }} />
             <select
               value={reportType}
@@ -238,6 +329,8 @@ export default function LaporanPage() {
                 setStatusFilter('');
                 setSelectedLoan(null);
                 setSelectedMutation(null);
+                setSelectedInspection(null);
+                setSelectedDeletion(null);
               }}
               style={{
                 border: 'none',
@@ -286,11 +379,7 @@ export default function LaporanPage() {
                 <option value="Selesai">Selesai</option>
               </>
             ) : reportType === 'pemeriksaan' ? (
-              <>
-                <option value="Menunggu">Menunggu</option>
-                <option value="Disetujui">Disetujui</option>
-                <option value="Ditolak">Ditolak</option>
-              </>
+              <option value="Selesai">Selesai</option>
             ) : (
               <>
                 <option value="Menunggu Persetujuan">Menunggu Persetujuan</option>
@@ -303,7 +392,7 @@ export default function LaporanPage() {
           </select>
 
           {/* Date 1 */}
-          <div style={{ position: 'relative', minWidth: '140px' }}>
+          <div className="report-date-filter" style={{ position: 'relative', minWidth: '140px' }}>
             <input
               type="date"
               value={startDate}
@@ -324,7 +413,7 @@ export default function LaporanPage() {
           </div>
 
           {/* Date 2 */}
-          <div style={{ position: 'relative', minWidth: '140px' }}>
+          <div className="report-date-filter" style={{ position: 'relative', minWidth: '140px' }}>
             <input
               type="date"
               value={endDate}
@@ -384,7 +473,7 @@ export default function LaporanPage() {
         {reportError && <div className="alert alert-danger" role="alert">{reportError}</div>}
 
         {/* Report table */}
-        <div className="table-responsive">
+        <div className="table-responsive report-desktop-table">
           <table className="table" style={{ margin: 0, borderCollapse: 'collapse', width: '100%' }}>
             <thead>
               <tr style={{ background: '#0f223d' }}>
@@ -409,14 +498,14 @@ export default function LaporanPage() {
                     <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>KONDISI DIAJUKAN</th>
                     <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>CATATAN PEMERIKSAAN</th>
                     <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>TANGGAL</th>
-                    <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>PEMOHON</th>
+                    <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>PETUGAS</th>
                   </>
                 ) : (
                   <>
                     <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>ALASAN PENGHAPUSAN</th>
                     <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>TEMPAT PEMBUANGAN</th>
                     <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>TANGGAL PENGAJUAN</th>
-                    <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>PENGAJU</th>
+                    <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px' }}>PETUGAS</th>
                   </>
                 )}
                 <th style={{ background: '#0f223d', color: '#ffffff', fontSize: '11px', fontWeight: 700, padding: '12px 14px', textAlign: 'center' }}>STATUS</th>
@@ -442,9 +531,14 @@ export default function LaporanPage() {
                 </tr>
               ) : reportType === 'pemeriksaan' ? (
                 inspections.map((item, idx) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedInspection(item)}
+                    style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                    title="Klik untuk melihat detail pemeriksaan"
+                  >
                     <td style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', padding: '12px 8px' }}>{idx + 1}</td>
-                    <td style={{ fontWeight: 600, color: '#0f223d', fontSize: '12px', padding: '12px 14px' }}>#{item.id}</td>
+                    <td style={{ fontWeight: 600, color: '#0f223d', fontSize: '12px', padding: '12px 14px', whiteSpace: 'nowrap' }}>{inspectionNumber(item)}</td>
                     <td style={{ fontSize: '12px', color: '#1e293b', padding: '12px 14px' }}>
                       <div style={{ fontWeight: 500 }}>{item.aset?.nama_aset || '-'}</div>
                       <div style={{ fontSize: '11px', color: '#64748b' }}>{item.aset?.kode_aset || '-'}</div>
@@ -454,14 +548,22 @@ export default function LaporanPage() {
                       {item.kondisi_sebelum && <div style={{ fontSize: '11px', color: '#64748b' }}>Sebelumnya: {item.kondisi_sebelum}</div>}
                     </td>
                     <td style={{ fontSize: '12px', color: '#334155', padding: '12px 14px' }}>{item.keterangan || '-'}</td>
-                    <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>{formatDateTime(item.created_at)}</td>
+                    <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                      <div>{formatDate(item.created_at)}</div>
+                      {item.created_at && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{formatTime(item.created_at)}</div>}
+                    </td>
                     <td style={{ fontSize: '12px', color: '#334155', padding: '12px 14px' }}>{item.pemohon?.name || item.user?.name || '-'}</td>
-                    <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }}>{getMutationStatusBadge(item.status)}</td>
+                    <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }}>{getInspectionStatusBadge()}</td>
                   </tr>
                 ))
               ) : reportType === 'penghapusan' ? (
                 deletionRequests.map((item, idx) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedDeletion(item)}
+                    style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                    title="Klik untuk melihat detail penghapusan"
+                  >
                     <td style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', padding: '12px 8px' }}>{idx + 1}</td>
                     <td style={{ fontWeight: 600, color: '#0f223d', fontSize: '12px', padding: '12px 14px', whiteSpace: 'nowrap' }}>{item.nomor_penghapusan || deletionRequestNumber(item)}</td>
                     <td style={{ fontSize: '12px', color: '#1e293b', padding: '12px 14px' }}>
@@ -470,7 +572,10 @@ export default function LaporanPage() {
                     </td>
                     <td style={{ fontSize: '12px', color: '#334155', padding: '12px 14px' }}>{item.alasan || '-'}</td>
                     <td style={{ fontSize: '12px', color: '#334155', padding: '12px 14px' }}>{item.tempat_pembuangan || '-'}</td>
-                    <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>{formatDateTime(item.created_at)}</td>
+                    <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                      <div>{formatDate(item.created_at)}</div>
+                      {item.created_at && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{formatTime(item.created_at)}</div>}
+                    </td>
                     <td style={{ fontSize: '12px', color: '#334155', padding: '12px 14px' }}>{item.pengaju?.name || '-'}</td>
                     <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }}>{getMutationStatusBadge(item.status)}</td>
                   </tr>
@@ -489,7 +594,10 @@ export default function LaporanPage() {
                       <div>{item.lokasi_tujuan || '-'}</div>
                       {item.unit_tujuan && <div style={{ fontSize: '11px', color: '#64748b' }}>{item.unit_tujuan}</div>}
                     </td>
-                    <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>{formatDate(item.tanggal_mutasi)}</td>
+                    <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
+                      <div>{formatDate(item.tanggal_mutasi)}</div>
+                      {item.created_at && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{formatTime(item.created_at)}</div>}
+                    </td>
                     <td style={{ fontSize: '12px', color: '#334155', padding: '12px 14px' }}>{item.petugas || item.pengaju?.name || '-'}</td>
                     <td style={{ textAlign: 'center', padding: '12px 14px', whiteSpace: 'nowrap' }}>{getMutationStatusBadge(item.status)}</td>
                   </tr>
@@ -512,7 +620,12 @@ export default function LaporanPage() {
                       <div style={{ fontSize: '11px', color: '#64748b' }}>{item.unit}</div>
                     </td>
                     <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
-                      {formatDate(item.tanggal_peminjaman)}
+                      <div>{formatDate(item.tanggal_peminjaman || item.created_at)}</div>
+                      {item.created_at && formatTime(item.created_at) && (
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                          {formatTime(item.created_at)}
+                        </div>
+                      )}
                     </td>
                     <td style={{ fontSize: '12px', color: '#475569', padding: '12px 14px', whiteSpace: 'nowrap' }}>
                       {item.tanggal_rencana_kembali ? formatDate(item.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}
@@ -527,6 +640,52 @@ export default function LaporanPage() {
             </tbody>
           </table>
         </div>
+
+        {!isAdmin && (
+          <div className="report-mobile-results" aria-live="polite">
+            {loading && rows.length === 0 ? (
+              <Loading message="Memuat laporan..." />
+            ) : rows.length === 0 ? (
+              <div className="report-mobile-empty">Tidak ada data {reportLabel.toLowerCase()}.</div>
+            ) : rows.map((item) => {
+              const number = reportType === 'peminjaman' ? item.nomor_peminjaman
+                : reportType === 'mutasi' ? item.nomor_mutasi
+                  : reportType === 'pemeriksaan' ? inspectionNumber(item)
+                    : item.nomor_penghapusan || deletionRequestNumber(item);
+              const assetName = item.aset?.nama_aset || item.nama_aset || `Aset #${item.aset_id}`;
+              const detail = reportType === 'peminjaman'
+                ? `${item.nama_peminjam || '-'} · ${item.unit || '-'}`
+                : reportType === 'mutasi'
+                  ? `${item.lokasi_asal || '-'} → ${item.lokasi_tujuan || '-'}`
+                  : reportType === 'pemeriksaan'
+                    ? `${item.kondisi_diajukan || item.kondisi_baru || '-'} · ${item.keterangan || 'Tanpa catatan'}`
+                    : item.alasan || 'Tanpa keterangan';
+              const date = reportType === 'peminjaman' ? item.tanggal_peminjaman
+                : reportType === 'mutasi' ? item.tanggal_mutasi : item.created_at;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="report-mobile-item"
+                  onClick={() => openMobileReportItem(item)}
+                >
+                  <span className="report-mobile-item-top">
+                    <strong>{number || `#${item.id}`}</strong>
+                    {reportType === 'pemeriksaan'
+                      ? getInspectionStatusBadge()
+                      : reportType === 'peminjaman'
+                        ? getStatusBadge(item.status)
+                        : getMutationStatusBadge(item.status)}
+                  </span>
+                  <span className="report-mobile-item-asset">{assetName}</span>
+                  <span className="report-mobile-item-detail">{detail}</span>
+                  <span className="report-mobile-item-date">{formatDate(date)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Signature Section for Print */}
@@ -568,7 +727,7 @@ export default function LaporanPage() {
               <div><strong>Kode Aset</strong><div>{selectedLoan.aset?.kode_aset || '-'}</div></div>
               <div><strong>Peminjam</strong><div>{selectedLoan.nama_peminjam || '-'}</div></div>
               <div><strong>Unit</strong><div>{selectedLoan.unit || '-'}</div></div>
-              <div><strong>Tanggal Pinjam</strong><div>{formatDate(selectedLoan.tanggal_peminjaman)}</div></div>
+              <div><strong>Tanggal Pinjam</strong><div>{formatDate(selectedLoan.tanggal_peminjaman || selectedLoan.created_at)}{selectedLoan.created_at && formatTime(selectedLoan.created_at) ? ` (${formatTime(selectedLoan.created_at)})` : ''}</div></div>
               <div><strong>Rencana Kembali</strong><div>{selectedLoan.tanggal_rencana_kembali ? formatDate(selectedLoan.tanggal_rencana_kembali) : <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>Tanpa Tanggal Kembali</span>}</div></div>
               <div><strong>Status</strong><div>{selectedLoan.status || '-'}</div></div>
             </div>
@@ -587,7 +746,11 @@ export default function LaporanPage() {
             <div className="modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.9rem' }}>
               <div><strong>Aset</strong><div>{selectedMutation.aset?.nama_aset || '-'}</div></div>
               <div><strong>Kode Aset</strong><div>{selectedMutation.aset?.kode_aset || '-'}</div></div>
-              <div><strong>Tanggal Mutasi</strong><div>{formatDate(selectedMutation.tanggal_mutasi)}</div></div>
+              <div>
+                <strong>Tanggal Mutasi</strong>
+                <div>{formatDate(selectedMutation.tanggal_mutasi)}</div>
+                {selectedMutation.created_at && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Diajukan {formatTime(selectedMutation.created_at)}</div>}
+              </div>
               <div><strong>Petugas</strong><div>{selectedMutation.petugas || selectedMutation.pengaju?.name || '-'}</div></div>
               <div><strong>Lokasi Asal</strong><div>{selectedMutation.lokasi_asal || '-'}</div></div>
               <div><strong>Lokasi Tujuan</strong><div>{selectedMutation.lokasi_tujuan || '-'}</div></div>
@@ -598,6 +761,82 @@ export default function LaporanPage() {
               {selectedMutation.catatan_persetujuan && <div style={{ gridColumn: '1 / -1' }}><strong>Catatan Persetujuan</strong><div>{selectedMutation.catatan_persetujuan}</div></div>}
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setSelectedMutation(null)}>Tutup</button></div>
+          </div>
+        </div>
+      )}
+
+      {selectedInspection && (
+        <div className="modal-backdrop" onClick={() => setSelectedInspection(null)} style={{ zIndex: 1060 }}>
+          <div className="modal-dialog" onClick={(event) => event.stopPropagation()} style={{ maxWidth: '520px', width: '92%' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Detail Pemeriksaan: {inspectionNumber(selectedInspection)}</h3>
+              <button type="button" className="modal-close" onClick={() => setSelectedInspection(null)} aria-label="Tutup">×</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', fontSize: '0.9rem' }}>
+              <div><strong>Aset</strong><div>{selectedInspection.aset?.nama_aset || '-'}</div></div>
+              <div><strong>Kode Aset</strong><div>{selectedInspection.aset?.kode_aset || '-'}</div></div>
+              <div><strong>Kondisi Hasil Pemeriksaan</strong><div>{selectedInspection.kondisi_diajukan || selectedInspection.kondisi_baru || '-'}</div></div>
+              <div><strong>Kondisi Sebelumnya</strong><div>{selectedInspection.kondisi_sebelum || '-'}</div></div>
+              <div><strong>Status</strong><div>{getInspectionStatusBadge()}</div></div>
+              <div>
+                <strong>Tanggal Pemeriksaan</strong>
+                <div>{formatDate(selectedInspection.created_at)}</div>
+                {selectedInspection.created_at && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{formatTime(selectedInspection.created_at)}</div>}
+              </div>
+              <div><strong>Petugas</strong><div>{selectedInspection.pemohon?.name || selectedInspection.user?.name || selectedInspection.petugas || '-'}</div></div>
+              <div style={{ gridColumn: '1 / -1' }}><strong>Catatan Pemeriksaan</strong><div style={{ whiteSpace: 'pre-wrap' }}>{selectedInspection.keterangan || '-'}</div></div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <strong>Foto Bukti Pemeriksaan</strong>
+                <div style={{ marginTop: '6px' }}>
+                  {selectedInspection.foto ? (
+                    <ProtectedInspectionPhoto
+                      inspectionId={selectedInspection.id}
+                      imageStyle={{ display: 'block', maxWidth: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--gray-200)' }}
+                    />
+                  ) : <span style={{ color: 'var(--gray-500)' }}>Tidak ada foto bukti.</span>}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setSelectedInspection(null)}>Tutup</button></div>
+          </div>
+        </div>
+      )}
+
+      {selectedDeletion && (
+        <div className="modal-backdrop" onClick={() => setSelectedDeletion(null)} style={{ zIndex: 1060 }}>
+          <div className="modal-dialog" onClick={(event) => event.stopPropagation()} style={{ maxWidth: '520px', width: '92%' }}>
+            <div className="modal-header">
+              <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Detail Penghapusan: {selectedDeletion.nomor_penghapusan || deletionRequestNumber(selectedDeletion)}</h3>
+              <button type="button" className="modal-close" onClick={() => setSelectedDeletion(null)} aria-label="Tutup">×</button>
+            </div>
+            <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', fontSize: '0.9rem' }}>
+              <div><strong>Aset</strong><div>{selectedDeletion.aset?.nama_aset || '-'}</div></div>
+              <div><strong>Kode Aset</strong><div>{selectedDeletion.aset?.kode_aset || '-'}</div></div>
+              <div><strong>Kategori</strong><div>{selectedDeletion.aset?.kategori?.nama_kategori || '-'}</div></div>
+              <div><strong>Kondisi Aset</strong><div>{selectedDeletion.aset?.kondisi || '-'}</div></div>
+              <div><strong>Tempat Pembuangan</strong><div>{selectedDeletion.tempat_pembuangan || '-'}</div></div>
+              <div><strong>Status</strong><div>{selectedDeletion.status || '-'}</div></div>
+              <div>
+                <strong>Tanggal Pengajuan</strong>
+                <div>{formatDate(selectedDeletion.created_at)}</div>
+                {selectedDeletion.created_at && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{formatTime(selectedDeletion.created_at)}</div>}
+              </div>
+              <div><strong>Pengaju</strong><div>{selectedDeletion.pengaju?.name || '-'}</div></div>
+              <div style={{ gridColumn: '1 / -1' }}><strong>Alasan Penghapusan</strong><div style={{ whiteSpace: 'pre-wrap' }}>{selectedDeletion.alasan || '-'}</div></div>
+              {selectedDeletion.keterangan_tambahan && (
+                <div style={{ gridColumn: '1 / -1' }}><strong>Keterangan Tambahan</strong><div style={{ whiteSpace: 'pre-wrap' }}>{selectedDeletion.keterangan_tambahan}</div></div>
+              )}
+              <div style={{ gridColumn: '1 / -1' }}><strong>Catatan Admin</strong><div>{selectedDeletion.catatan_persetujuan || '-'}</div></div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <strong>Foto Bukti Penghapusan</strong>
+                <div style={{ marginTop: '6px' }}>
+                  {selectedDeletion.foto ? (
+                    <ProtectedDeletionPhoto requestId={selectedDeletion.id} />
+                  ) : <span style={{ color: 'var(--gray-500)' }}>Tidak ada foto bukti.</span>}
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setSelectedDeletion(null)}>Tutup</button></div>
           </div>
         </div>
       )}

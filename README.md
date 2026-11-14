@@ -33,7 +33,12 @@ Aplikasi mobile-first untuk operator lapangan yang terpisah dari backend Laravel
 8. **Riwayat Aktivitas Terpadu**:
    - Tab 1: Log aktivitas akun operator sendiri (`GET /api/me/activities`).
    - Tab 2: Riwayat pergerakan aset operasional (`GET /api/operasional/aktivitas`).
-9. **Konfigurasi Server API Fleksibel**:
+9. **Progressive Web App (PWA)**:
+   - Aplikasi dapat dipasang dari browser pada HTTPS atau localhost, dengan tampilan standalone dan navigasi bawah yang sudah tersedia untuk ponsel.
+   - Shell aplikasi dan file statis disimpan untuk membuka aplikasi saat offline. Katalog aset dan kategori menggunakan network-first dengan cache fallback.
+   - Data akun, transaksi, dan endpoint privat tidak disimpan oleh service worker; fitur yang memerlukan backend tetap membutuhkan koneksi.
+   - Foto bukti dari kamera atau galeri otomatis diperkecil dan dikompres di browser sebelum diunggah.
+10. **Konfigurasi Server API Fleksibel**:
    - Base URL API dapat disesuaikan langsung lewat modal antarmuka tanpa perlu re-build aplikasi.
    - Uji koneksi interaktif ke backend Laravel dengan diagnostik status jaringan.
 
@@ -142,6 +147,7 @@ VITE_API_BASE_URL=/api
   - API menerima akun aktif (`is_active = true`) dengan role `operator`, `admin_aset`, `admin_persetujuan`, atau `super_admin`. Role lama `admin` tetap didukung sebagai super admin.
   - `admin_aset` mengelola data dan kategori aset; `admin_persetujuan` menangani persetujuan operasional dan BAST; `super_admin` memiliki seluruh hak akses termasuk pengelolaan pengguna.
   - Akun dengan role `user` tidak dapat login ke aplikasi ini. Pengaturan role dilakukan melalui dashboard web manajemen aset.
+- **Akun Login**: Tidak ada akun demo atau kredensial bawaan di aplikasi. Gunakan email dan kata sandi akun aktif yang dibuat administrator melalui dashboard web manajemen aset. Jika belum memiliki akses, hubungi administrator.
 - **Penyimpanan Token**: Token Sanctum disimpan secara aman di `localStorage` perangkat. Kata sandi tidak pernah disimpan di sisi klien.
 - **Header Permintaan**: Setiap permintaan privat otomatis menyertakan:
   ```http

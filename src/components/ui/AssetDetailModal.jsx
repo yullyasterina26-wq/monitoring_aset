@@ -6,6 +6,7 @@ import {
   HiOutlineSwitchHorizontal,
   HiOutlineClipboardCheck,
   HiOutlineLockClosed,
+  HiOutlineTrash,
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
 import { Badge, kondisiBadge, formatDateTime } from './Shared';
@@ -19,6 +20,7 @@ export default function AssetDetailModal({
   onPinjam,
   onMutasi,
   onPemeriksaan,
+  onPenghapusan,
 }) {
   const { isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState('detail'); // 'detail' | 'history'
@@ -342,7 +344,23 @@ export default function AssetDetailModal({
                 title="Catat Pemeriksaan Fisik"
               >
                 <HiOutlineClipboardCheck />
-                <span>Periksa</span>
+                <span>Pemeriksaan</span>
+              </button>
+            )}
+
+            {onPenghapusan && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  onClose();
+                  onPenghapusan(asset);
+                }}
+                style={{ fontSize: '0.8rem', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                title="Ajukan Penghapusan"
+              >
+                <HiOutlineTrash />
+                <span>Penghapusan</span>
               </button>
             )}
           </div>

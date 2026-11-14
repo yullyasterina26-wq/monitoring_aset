@@ -43,6 +43,13 @@ export default function StatCard({
       badgeBg: '#e0e7ff',
       badgeText: '#3730a3',
     },
+    rose: {
+      bg: '#ffe4e6',
+      text: '#e11d48',
+      border: '#fecdd3',
+      badgeBg: '#ffe4e6',
+      badgeText: '#9f1239',
+    },
   };
 
   const scheme = colorMap[color] || colorMap.blue;
@@ -52,16 +59,7 @@ export default function StatCard({
       className={`stat-card-custom${onClick ? ' is-clickable' : ''} stat-card-custom--${color}`}
       onClick={onClick}
       style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        padding: '1.25rem 1.5rem',
-        border: '1px solid var(--gray-200)',
-        boxShadow: '0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.04)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
         cursor: onClick ? 'pointer' : 'default',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
       }}
       onMouseEnter={e => {
         if (onClick) {
@@ -72,33 +70,26 @@ export default function StatCard({
       onMouseLeave={e => {
         if (onClick) {
           e.currentTarget.style.transform = 'none';
-          e.currentTarget.style.boxShadow = '0 2px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.04)';
+          e.currentTarget.style.boxShadow = '';
         }
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--gray-500)', letterSpacing: '0.2px' }}>
+      <div className="stat-card-header">
+        <div className="stat-card-info">
+          <span className="stat-card-title">
             {title}
           </span>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '0.25rem', lineHeight: 1.1 }}>
+          <div className="stat-card-value">
             {typeof value === 'number' ? value.toLocaleString('id-ID') : value ?? 0}
           </div>
         </div>
 
         {Icon && (
           <div
+            className="stat-card-icon"
             style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '10px',
               background: scheme.bg,
               color: scheme.text,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              flexShrink: 0,
             }}
           >
             <Icon />
@@ -107,23 +98,20 @@ export default function StatCard({
       </div>
 
       {(description || badgeText) && (
-        <div style={{ marginTop: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+        <div className="stat-card-meta">
           {badgeText && (
             <span
+              className="stat-card-badge"
               style={{
                 background: scheme.badgeBg,
                 color: scheme.badgeText,
-                padding: '2px 8px',
-                borderRadius: '12px',
-                fontWeight: 600,
-                fontSize: '0.75rem',
               }}
             >
               {badgeText}
             </span>
           )}
           {description && (
-            <span style={{ color: 'var(--gray-500)' }}>{description}</span>
+            <span className="stat-card-desc">{description}</span>
           )}
         </div>
       )}

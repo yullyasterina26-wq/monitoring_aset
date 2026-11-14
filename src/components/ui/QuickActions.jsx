@@ -15,68 +15,30 @@ export default function QuickActions({
   onOpenLoanModal,
   onOpenMutationModal,
   onOpenInspectionModal,
+  onOpenDeletionModal,
 }) {
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
 
   return (
-    <div
-      className="card"
-      style={{
-        borderRadius: '12px',
-        border: '1px solid var(--gray-200)',
-        boxShadow: '0 2px 6px -1px rgba(0, 0, 0, 0.05)',
-        background: '#ffffff',
-        marginBottom: '1.5rem',
-      }}
-    >
-      <div
-        className="card-header"
-        style={{
-          padding: '14px 20px',
-          borderBottom: '1px solid var(--gray-100)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-        }}
-      >
-        <HiOutlineLightningBolt style={{ fontSize: '18px', color: 'var(--primary-600)' }} />
-        <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--gray-900)' }}>
+    <div className={`card quick-actions-card${isAdmin ? '' : ' quick-actions-card--operator'}`}>
+      <div className="card-header quick-actions-header">
+        <HiOutlineLightningBolt className="quick-actions-title-icon" />
+        <h2 className="quick-actions-title">
           Aksi Cepat Operasional
         </h2>
       </div>
 
-      <div
-        className="card-body"
-        style={{
-          padding: '16px 20px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-          gap: '10px',
-        }}
-      >
+      <div className="card-body quick-actions-grid">
         {/* Tombol 1: Pindai QR */}
         <button
           type="button"
           onClick={onOpenScanModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, #1e40af, #2563eb)',
-            color: '#ffffff',
-            border: 'none',
-            fontWeight: 700,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(37,99,235,0.25)',
-          }}
+          className="quick-action-btn quick-action-btn--primary"
+          data-mobile-label="Scan QR"
           id="btn-quick-scan-qr"
         >
-          <HiOutlineQrcode style={{ fontSize: '1.25rem' }} />
+          <HiOutlineQrcode />
           <span>Pindai QR Aset</span>
         </button>
 
@@ -84,124 +46,65 @@ export default function QuickActions({
         <button
           type="button"
           onClick={() => navigate('/aset')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: 'var(--gray-50)',
-            color: 'var(--gray-700)',
-            border: '1px solid var(--gray-200)',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-          }}
+          className="quick-action-btn quick-action-btn--secondary"
+          data-mobile-label="Katalog"
           id="btn-quick-view-assets"
         >
-          <HiOutlineCube style={{ fontSize: '1.25rem' }} />
+          <HiOutlineCube />
           <span>Katalog Aset</span>
         </button>
 
-        {!isAdmin && <>
-        {/* Tombol 3: Ajukan Peminjaman */}
-        <button
-          type="button"
-          onClick={onOpenLoanModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: 'var(--primary-50)',
-            color: 'var(--primary-700)',
-            border: '1px solid var(--primary-200)',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-          }}
-          id="btn-quick-loan"
-        >
-          <HiOutlinePlusCircle style={{ fontSize: '1.25rem' }} />
-          <span>Ajukan Pinjam</span>
-        </button>
-        {/* Tombol 4: Ajukan Mutasi */}
-        <button
-          type="button"
-          onClick={onOpenMutationModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: 'var(--primary-50)',
-            color: 'var(--primary-700)',
-            border: '1px solid var(--primary-200)',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-          }}
-          id="btn-quick-mutation"
-        >
-          <HiOutlineSwitchHorizontal style={{ fontSize: '1.25rem' }} />
-          <span>Ajukan Mutasi</span>
-        </button>
-        </>}
+        {!isAdmin && (
+          <>
+            {/* Tombol 3: Ajukan Peminjaman */}
+            <button
+              type="button"
+              onClick={onOpenLoanModal}
+              className="quick-action-btn quick-action-btn--secondary"
+              data-mobile-label="Pinjam"
+              id="btn-quick-loan"
+            >
+              <HiOutlinePlusCircle />
+              <span>Ajukan Pinjam</span>
+            </button>
+            {/* Tombol 4: Ajukan Mutasi */}
+            <button
+              type="button"
+              onClick={onOpenMutationModal}
+              className="quick-action-btn quick-action-btn--secondary"
+              data-mobile-label="Mutasi"
+              id="btn-quick-mutation"
+            >
+              <HiOutlineSwitchHorizontal />
+              <span>Ajukan Mutasi</span>
+            </button>
+          </>
+        )}
 
         {/* Tombol 5: Catat Pemeriksaan */}
         <button
           type="button"
           onClick={onOpenInspectionModal}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: 'var(--primary-50)',
-            color: 'var(--primary-700)',
-            border: '1px solid var(--primary-200)',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-          }}
+          className="quick-action-btn quick-action-btn--secondary"
+          data-mobile-label="Periksa"
           id="btn-quick-inspection"
         >
-          <HiOutlineClipboardCheck style={{ fontSize: '1.25rem' }} />
+          <HiOutlineClipboardCheck />
           <span>Pemeriksaan Fisik</span>
         </button>
 
-        {!isAdmin && <>
-        {/* Tombol 6: Ajukan penghapusan diproses melalui halaman pengajuan operasional. */}
-        <button
-          type="button"
-          onClick={() => navigate('/penghapusan')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: '#fef2f2',
-            color: '#b91c1c',
-            border: '1px solid #fecaca',
-            fontWeight: 600,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-          }}
-          id="btn-quick-deletion-request"
-        >
-          <HiOutlineTrash style={{ fontSize: '1.25rem' }} />
-          <span>Ajukan Penghapusan</span>
-        </button>
-        </>}
+        {!isAdmin && (
+          <button
+            type="button"
+            onClick={onOpenDeletionModal}
+            className="quick-action-btn quick-action-btn--secondary"
+            data-mobile-label="Hapus"
+            id="btn-quick-deletion"
+          >
+            <HiOutlineTrash />
+            <span>Ajukan Penghapusan</span>
+          </button>
+        )}
       </div>
     </div>
   );

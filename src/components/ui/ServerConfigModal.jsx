@@ -34,7 +34,9 @@ export default function ServerConfigModal({ isOpen, onClose, onSaved }) {
     if (res.success) {
       setTestResult({
         success: true,
-        message: 'Koneksi berhasil! Server Laravel merespons API dengan baik.',
+        message: res.viaProxy
+          ? 'Koneksi berhasil melalui proxy lokal. Akses langsung ke API kemungkinan dibatasi CORS.'
+          : 'Koneksi berhasil! Server Laravel merespons API dengan baik.',
       });
     } else {
       setTestResult({

@@ -10,8 +10,9 @@ import {
   HiOutlinePaperClip,
   HiOutlineCheckCircle,
   HiOutlineX,
+  HiOutlineCube,
 } from 'react-icons/hi';
-import { Loading, Badge, Pagination, formatDate } from '../components/ui/Shared';
+import { Loading, Badge, Pagination, formatDate, formatTime } from '../components/ui/Shared';
 import MutationModal from '../components/ui/MutationModal';
 import ImagePreview from '../components/ui/ImagePreview';
 import api, { getStorageUrl } from '../services/api';
@@ -45,6 +46,7 @@ function ProtectedMutationPhoto({ mutation }) {
 export default function MutasiPage() {
   const { isAdmin } = useAuth();
   const [mutations, setMutations] = useState([]);
+  const [mutationStats, setMutationStats] = useState({ total: 0, menunggu: 0, disetujui: 0, selesai: 0 });
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, from: 0, to: 0, currentPage: 1, lastPage: 1 });
   const [search, setSearch] = useState('');
@@ -94,9 +96,36 @@ export default function MutasiPage() {
       .finally(() => setLoading(false));
   };
 
+  const fetchMutationStats = async () => {
+    try {
+      const [all, pending, approved, processing, completed] = await Promise.all([
+        api.get('/mutations', { params: { per_page: 1 } }),
+        api.get('/mutations', { params: { status: 'Menunggu', per_page: 1 } }),
+        api.get('/mutations', { params: { status: 'Disetujui', per_page: 1 } }),
+        api.get('/mutations', { params: { status: 'Diproses', per_page: 1 } }),
+        api.get('/mutations', { params: { status: 'Selesai', per_page: 1 } }),
+      ]);
+      const totals = [all, pending, approved, processing, completed].map(({ data }) => data?.total);
+      if (totals.some((total) => typeof total !== 'number')) {
+        throw new Error('Jumlah pengajuan mutasi tidak tersedia.');
+      }
+      setMutationStats({
+        total: totals[0],
+        menunggu: totals[1],
+        disetujui: totals[2] + totals[3],
+        selesai: totals[4],
+      });
+    } catch (error) {
+      console.error('Gagal memuat ringkasan mutasi:', error);
+    }
+  };
+
   useEffect(() => {
     fetchMutations(page);
   }, [page, statusFilter, debouncedSearch]);
+  useEffect(() => {
+    fetchMutationStats();
+  }, []);
 
   const handleReset = () => {
     setSearch('');
@@ -119,6 +148,7 @@ export default function MutasiPage() {
   const handleMutationSuccess = () => {
     setToastMessage('Pengajuan mutasi berhasil dikirim! Menunggu persetujuan admin.');
     fetchMutations(1);
+    fetchMutationStats();
     setTimeout(() => setToastMessage(''), 6000);
   };
 
@@ -137,11 +167,6 @@ export default function MutasiPage() {
         return <Badge type="default">{status || '-'}</Badge>;
     }
   };
-
-  // Stats calculation
-  const countMenunggu = mutations.filter((m) => m.status === 'Menunggu').length;
-  const countDisetujui = mutations.filter((m) => m.status === 'Disetujui' || m.status === 'Diproses').length;
-  const countSelesai = mutations.filter((m) => m.status === 'Selesai').length;
 
   return (
     <main className="main-content page-enter" style={{ padding: '24px 28px', maxWidth: '1440px' }}>
@@ -163,33 +188,23 @@ export default function MutasiPage() {
       )}
 
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          marginBottom: '1.5rem',
-        }}
-      >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <HiOutlineSwitchHorizontal style={{ fontSize: '1.5rem', color: 'var(--primary-600)' }} />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--gray-900)', margin: 0 }}>
+      <div className="page-header-row">
+        <div className="page-header-title-area">
+          <div className="page-header-heading">
+            <HiOutlineSwitchHorizontal className="page-header-icon" />
+            <h1 className="page-header-title">
               Mutasi Aset
             </h1>
           </div>
-          <p style={{ margin: 0, color: 'var(--gray-500)', fontSize: '0.875rem' }}>
+          <p className="page-header-sub">
             Pengajuan pemindahan lokasi fisik aset dan riwayat status mutasi operasional.
           </p>
         </div>
 
         {!isAdmin && <button
           type="button"
-          className="btn btn-primary"
+          className="btn btn-primary page-action-btn"
           onClick={() => setIsMutationModalOpen(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', fontWeight: 600 }}
           id="btn-open-mutation-modal"
         >
           <HiOutlinePlus style={{ fontSize: '18px' }} />
@@ -197,8 +212,10 @@ export default function MutasiPage() {
         </button>}
       </div>
 
-      {/* Stat Cards */}
+
+      {/* 4 Kartu Status Mutasi Aset */}
       <div
+        className="stats-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -206,40 +223,44 @@ export default function MutasiPage() {
           marginBottom: '1.5rem',
         }}
       >
-        <div className="card" style={{ padding: '16px', borderRadius: '10px' }}>
+        <div className="card" style={{ padding: '16px', borderRadius: '10px', borderTop: '3px solid #64748b' }}>
           <div style={{ color: 'var(--gray-500)', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
             Total Pengajuan
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--gray-900)', marginTop: '4px' }}>
-            {pagination.total || mutations.length}
+            {mutationStats.total}
           </div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Semua mutasi</div>
         </div>
 
-        <div className="card" style={{ padding: '16px', borderRadius: '10px' }}>
+        <div className="card" style={{ padding: '16px', borderRadius: '10px', borderTop: '3px solid #f59e0b' }}>
           <div style={{ color: '#d97706', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
             Menunggu Persetujuan
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
-            {countMenunggu}
+            {mutationStats.menunggu}
           </div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Perlu ditinjau</div>
         </div>
 
-        <div className="card" style={{ padding: '16px', borderRadius: '10px' }}>
+        <div className="card" style={{ padding: '16px', borderRadius: '10px', borderTop: '3px solid #3b82f6' }}>
           <div style={{ color: '#2563eb', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
             Disetujui
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#2563eb', marginTop: '4px' }}>
-            {countDisetujui}
+            {mutationStats.disetujui}
           </div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Dalam proses</div>
         </div>
 
-        <div className="card" style={{ padding: '16px', borderRadius: '10px' }}>
+        <div className="card" style={{ padding: '16px', borderRadius: '10px', borderTop: '3px solid #10b981' }}>
           <div style={{ color: '#16a34a', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
             Selesai
           </div>
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
-            {countSelesai}
+            {mutationStats.selesai}
           </div>
+          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Mutasi tuntas</div>
         </div>
       </div>
 
@@ -331,70 +352,150 @@ export default function MutasiPage() {
             </button>}
           </div>
         ) : (
-          <div className="table-responsive">
-            <table className="table" style={{ margin: 0 }}>
-              <thead>
-                <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>No</th>
-                  <th>Tanggal</th>
-                  <th>Aset</th>
-                  <th>Lokasi Asal</th>
-                  <th>Lokasi Tujuan</th>
-                  <th>Unit Tujuan</th>
-                  <th>Petugas</th>
-                  <th style={{ textAlign: 'center' }}>Status</th>
-                  <th style={{ textAlign: 'center' }}>Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {mutations.map((m, idx) => (
-                  <tr key={m.id || idx} onClick={() => openDetail(m.id)} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail mutasi">
-                    <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
-                      {(pagination.from || 1) + idx}
-                    </td>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
-                      {m.tanggal_mutasi ? formatDate(m.tanggal_mutasi) : '-'}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '0.85rem' }}>
-                        {m.aset?.nama_aset || m.nama_aset || `Aset #${m.aset_id}`}
+          <>
+            {/* Desktop Table View (>= 769px) */}
+            <div className="table-responsive mutasi-table-desktop">
+              <table className="table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px', textAlign: 'center' }}>No</th>
+                    <th>No. Mutasi</th>
+                    <th>Tanggal</th>
+                    <th>Aset</th>
+                    <th>Lokasi Asal</th>
+                    <th>Lokasi Tujuan</th>
+                    <th>Unit Tujuan</th>
+                    <th>Petugas</th>
+                    <th style={{ textAlign: 'center' }}>Status</th>
+                    <th style={{ textAlign: 'center' }}>Aksi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mutations.map((m, idx) => (
+                    <tr key={m.id || idx} onClick={() => openDetail(m.id)} style={{ cursor: 'pointer' }} title="Klik baris untuk melihat detail mutasi">
+                      <td style={{ textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.8rem' }}>
+                        {(pagination.from || 1) + idx}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gray-800)' }}>
+                        {m.nomor_mutasi || '-'}
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                        <div>{m.tanggal_mutasi ? formatDate(m.tanggal_mutasi) : '-'}</div>
+                        {m.created_at && <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '2px' }}>{formatTime(m.created_at)}</div>}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '0.85rem' }}>
+                          {m.aset?.nama_aset || m.nama_aset || `Aset #${m.aset_id}`}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--primary-700)', fontWeight: 600 }}>
+                          {m.aset?.kode_aset || m.kode_aset || '-'}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
+                        {m.lokasi_asal || '-'}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-700)' }}>
+                        {m.lokasi_tujuan || '-'}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
+                        {m.unit_tujuan || '-'}
+                      </td>
+                      <td style={{ fontSize: '0.85rem', color: 'var(--gray-700)' }}>
+                        {m.petugas || '-'}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        {getStatusBadge(m.status)}
+                      </td>
+                      <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => openDetail(m.id)}
+                          style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          title="Lihat Detail Mutasi"
+                        >
+                          <HiOutlineEye />
+                          <span>Detail</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card List View (<= 768px) - No Horizontal Scrolling! */}
+            <div className="mobile-data-list mutasi-mobile-list">
+              {mutations.map((m, idx) => {
+                const itemNumber = (pagination.from || 1) + idx;
+                return (
+                  <div
+                    key={m.id || idx}
+                    className="mobile-data-card"
+                    onClick={() => openDetail(m.id)}
+                  >
+                    <div className="mobile-data-card-header">
+                      <div className="mobile-data-card-id">
+                        <span className="mobile-data-card-num">#{itemNumber}</span>
+                        <strong className="mobile-data-card-code">{m.nomor_mutasi || '-'}</strong>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--primary-700)', fontWeight: 600 }}>
-                        {m.aset?.kode_aset || m.kode_aset || '-'}
+                      <div>{getStatusBadge(m.status)}</div>
+                    </div>
+
+                    <div className="mobile-data-card-asset">
+                      <div className="mobile-data-card-asset-icon">
+                        <HiOutlineCube />
                       </div>
-                    </td>
-                    <td style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
-                      {m.lokasi_asal || '-'}
-                    </td>
-                    <td style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-700)' }}>
-                      {m.lokasi_tujuan || '-'}
-                    </td>
-                    <td style={{ fontSize: '0.85rem', color: 'var(--gray-600)' }}>
-                      {m.unit_tujuan || '-'}
-                    </td>
-                    <td style={{ fontSize: '0.85rem', color: 'var(--gray-700)' }}>
-                      {m.petugas || '-'}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {getStatusBadge(m.status)}
-                    </td>
-                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                      <div>
+                        <div className="mobile-data-card-asset-name">
+                          {m.aset?.nama_aset || m.nama_aset || `Aset #${m.aset_id}`}
+                        </div>
+                        <div className="mobile-data-card-asset-sub">
+                          Kode: <strong>{m.aset?.kode_aset || m.kode_aset || '-'}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mobile-data-card-grid">
+                      <div className="mobile-data-card-meta-item">
+                        <span className="mobile-data-card-meta-label">Lokasi Asal</span>
+                        <span className="mobile-data-card-meta-value">{m.lokasi_asal || '-'}</span>
+                      </div>
+                      <div className="mobile-data-card-meta-item">
+                        <span className="mobile-data-card-meta-label">Lokasi Tujuan</span>
+                        <span className="mobile-data-card-meta-value" style={{ color: 'var(--primary-700)' }}>
+                          {m.lokasi_tujuan || '-'}
+                        </span>
+                      </div>
+                      <div className="mobile-data-card-meta-item">
+                        <span className="mobile-data-card-meta-label">Unit Tujuan</span>
+                        <span className="mobile-data-card-meta-value">{m.unit_tujuan || '-'}</span>
+                      </div>
+                      <div className="mobile-data-card-meta-item">
+                        <span className="mobile-data-card-meta-label">Tgl Mutasi</span>
+                        <span className="mobile-data-card-meta-value">
+                          {m.tanggal_mutasi ? formatDate(m.tanggal_mutasi) : '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mobile-data-card-footer">
                       <button
                         type="button"
-                        className="btn btn-secondary"
-                        onClick={() => openDetail(m.id)}
-                        style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                        title="Lihat Detail Mutasi"
+                        className="btn btn-secondary mobile-data-card-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetail(m.id);
+                        }}
                       >
-                        <HiOutlineEye />
-                        <span>Detail</span>
+                        <HiOutlineEye /> Lihat Detail
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {/* Pagination Footer */}
@@ -464,6 +565,7 @@ export default function MutasiPage() {
                   <div style={{ fontWeight: 600 }}>
                     {selectedMutation.tanggal_mutasi ? formatDate(selectedMutation.tanggal_mutasi) : '-'}
                   </div>
+                  {selectedMutation.created_at && <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '2px' }}>Diajukan {formatTime(selectedMutation.created_at)}</div>}
                 </div>
 
                 <div>

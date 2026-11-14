@@ -22,10 +22,35 @@ function responseCacheKey(url, config = {}) {
   return `${token}|${base}|${url}|${JSON.stringify(stableParams(config.params || {}))}`;
 }
 
+function isPublicCatalogRequest(config) {
+  if (config.method?.toLowerCase() !== 'get') return false;
+  const path = String(config.url || '').split('?')[0].replace(/^\/api(?=\/)/, '');
+  return path === '/categories' ||
+    path === '/assets' ||
+    /^\/assets\/(?:by-code\/[^/]+|\d+)\/?$/.test(path);
+}
+
 export function getApiBaseUrl() {
   const custom = localStorage.getItem('custom_api_base_url');
   if (custom && custom.trim()) {
-    return custom.trim().replace(/\/+$/, '');
+    const normalized = normalizeApiBaseUrl(custom);
+    if (import.meta.env.DEV) {
+      try {
+        const apiUrl = new URL(normalized, window.location.origin);
+        const frontendHost = window.location.hostname.toLowerCase();
+        const apiHost = apiUrl.hostname.toLowerCase();
+        const isLoopback = (hostname) => ['localhost', '127.0.0.1', '::1'].includes(hostname);
+        const sameLocalHost = apiHost === frontendHost ||
+          (isLoopback(apiHost) && isLoopback(frontendHost));
+
+        if (sameLocalHost && apiUrl.port === '8000' && apiUrl.pathname.replace(/\/+$/, '') === '/api') {
+          return '/api';
+        }
+      } catch {
+        return normalized;
+      }
+    }
+    return normalized;
   }
   return (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 }
@@ -38,16 +63,19 @@ export function getStorageUrl(path) {
   return `${base}/storage/${normalizedPath}`;
 }
 
+function normalizeApiBaseUrl(url) {
+  const clean = url.trim().replace(/\/+$/, '');
+  if (/^https?:\/\/[^/]+(?::\d+)?$/i.test(clean)) {
+    return `${clean}/api`;
+  }
+  return clean;
+}
+
 export function setCustomApiBaseUrl(url) {
   if (!url || !url.trim()) {
     localStorage.removeItem('custom_api_base_url');
   } else {
-    let clean = url.trim().replace(/\/+$/, '');
-    // Ensure /api suffix if not present and url looks like http://...:8000
-    if (/^https?:\/\/[^/]+(?::\d+)?$/i.test(clean)) {
-      clean += '/api';
-    }
-    localStorage.setItem('custom_api_base_url', clean);
+    localStorage.setItem('custom_api_base_url', normalizeApiBaseUrl(url));
   }
 }
 
@@ -112,7 +140,7 @@ api.interceptors.request.use(
       inFlightRefreshes.clear();
     }
     const token = localStorage.getItem('auth_token');
-    if (token) {
+    if (token && !isPublicCatalogRequest(config)) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -166,7 +194,7 @@ api.interceptors.response.use(
 
 // Helper to test server connectivity
 export async function testApiConnection(baseUrl) {
-  const url = (baseUrl || getApiBaseUrl()).replace(/\/+$/, '');
+  const url = normalizeApiBaseUrl(baseUrl || getApiBaseUrl());
   try {
     const res = await axios.get(`${url}/categories`, {
       headers: { Accept: 'application/json' },
@@ -174,6 +202,39 @@ export async function testApiConnection(baseUrl) {
     });
     return { success: res.status >= 200 && res.status < 300, data: res.data };
   } catch (err) {
+    let apiHost;
+    try {
+      apiHost = new URL(url).hostname.toLowerCase();
+    } catch {
+      apiHost = '';
+    }
+
+    const isLoopback = (hostname) => ['localhost', '127.0.0.1', '::1'].includes(hostname);
+    const canUseDevProxy = import.meta.env.DEV &&
+      window.location.port === '5173' &&
+      (apiHost === window.location.hostname.toLowerCase() ||
+        (isLoopback(apiHost) && isLoopback(window.location.hostname.toLowerCase())));
+
+    if (err.request && canUseDevProxy) {
+      try {
+        const proxyResponse = await axios.get('/api/categories', {
+          headers: { Accept: 'application/json' },
+          timeout: 5000,
+        });
+        return {
+          success: proxyResponse.status >= 200 && proxyResponse.status < 300,
+          data: proxyResponse.data,
+          viaProxy: true,
+        };
+      } catch (proxyError) {
+        return {
+          success: false,
+          error: proxyError.response?.data?.message || proxyError.message || err.message || 'Gagal terhubung ke server',
+          status: proxyError.response?.status,
+        };
+      }
+    }
+
     return {
       success: false,
       error: err.response?.data?.message || err.message || 'Gagal terhubung ke server',

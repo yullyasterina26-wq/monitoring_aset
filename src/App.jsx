@@ -47,7 +47,8 @@ export default function App() {
   }, [theme]);
 
   return (
-    <Routes>
+    <>
+      <Routes>
       {/* Login route */}
       <Route path="/login" element={<LoginPage />} />
 
@@ -74,6 +75,7 @@ export default function App() {
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   );
 }

@@ -84,14 +84,49 @@ export function formatDate(dateStr) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+function parseBackendDateTime(dateStr) {
+  if (typeof dateStr !== 'string') return new Date(dateStr);
+
+  const value = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T00:00:00+07:00`);
+  }
+
+  const normalized = value.replace(' ', 'T');
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)) {
+    return new Date(normalized);
+  }
+
+  return new Date(`${normalized}Z`);
+}
+
 export function formatDateTime(dateStr) {
   if (!dateStr) return '-';
-  const d = new Date(dateStr);
+  const d = parseBackendDateTime(dateStr);
+  if (isNaN(d.getTime())) return '-';
   return d.toLocaleDateString('id-ID', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Jakarta',
   });
+}
+
+export function formatTime(dateStr, includeSeconds = true) {
+  if (!dateStr) return '';
+  if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+    return '';
+  }
+  const d = parseBackendDateTime(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const options = {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jakarta',
+  };
+  if (includeSeconds) {
+    options.second = '2-digit';
+  }
+  return d.toLocaleTimeString('id-ID', options).replace(/\./g, ':') + ' WIB';
 }
 
 export function formatCurrency(val) {

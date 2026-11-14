@@ -1,6 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import { HiOutlineCamera, HiOutlinePhotograph, HiOutlineX } from 'react-icons/hi';
 
+const MAX_IMAGE_DIMENSION = 1920;
+
+async function canvasToJpegFile(canvas, name, maxBytes) {
+  for (const quality of [0.82, 0.72, 0.62, 0.5]) {
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob) throw new Error('Foto gagal diproses. Silakan pilih foto lain.');
+    if (blob.size <= maxBytes) {
+      return new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
+    }
+  }
+  throw new Error('Foto masih melebihi batas ukuran setelah dikompres. Pilih foto dengan resolusi lebih rendah.');
+}
+
+async function compressImageFile(file, maxBytes) {
+  if (typeof createImageBitmap !== 'function') {
+    if (file.size <= maxBytes) return file;
+    throw new Error('Browser tidak mendukung kompresi foto. Pilih foto yang lebih kecil.');
+  }
+
+  const image = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height));
+    if (file.size <= 1024 * 1024 && scale === 1) return file;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.width * scale));
+    canvas.height = Math.max(1, Math.round(image.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Foto gagal diproses oleh browser.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'foto-bukti';
+    return await canvasToJpegFile(canvas, `${baseName}.jpg`, maxBytes);
+  } finally {
+    image.close();
+  }
+}
+
 export default function PhotoEvidenceInput({
   label = 'Foto Bukti (Opsional)',
   value,
@@ -20,6 +60,7 @@ export default function PhotoEvidenceInput({
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraLoading, setCameraLoading] = useState(false);
   const [cameraError, setCameraError] = useState('');
+  const [compressing, setCompressing] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -40,16 +81,22 @@ export default function PhotoEvidenceInput({
     setPreviewUrl(previewUrlRef.current);
   };
 
-  const handleFile = (event) => {
+  const handleFile = async (event) => {
     const file = event.target.files?.[0] || null;
     event.target.value = '';
-    if (file && file.size > maxSizeMb * 1024 * 1024) {
+    if (!file) return;
+
+    setCompressing(true);
+    try {
+      const compressedFile = await compressImageFile(file, maxSizeMb * 1024 * 1024);
+      setPreview(compressedFile);
+      onChange(compressedFile, '');
+    } catch (error) {
       setPreview(null);
-      onChange(null, `Ukuran file maksimal ${maxSizeMb} MB.`);
-      return;
+      onChange(null, error.message || 'Foto gagal diproses. Silakan coba lagi.');
+    } finally {
+      setCompressing(false);
     }
-    setPreview(file);
-    onChange(file, '');
   };
 
   const stopCamera = () => {
@@ -94,7 +141,7 @@ export default function PhotoEvidenceInput({
     }
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video?.videoWidth || !video?.videoHeight || !canvas) {
@@ -102,23 +149,22 @@ export default function PhotoEvidenceInput({
       return;
     }
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(video.videoWidth, video.videoHeight));
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        setCameraError('Foto gagal dibuat. Silakan ambil ulang.');
-        return;
-      }
-      const file = new File([blob], `foto-bukti-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      if (file.size > maxSizeMb * 1024 * 1024) {
-        setCameraError(`Ukuran foto melebihi batas ${maxSizeMb} MB. Dekatkan objek atau gunakan Pilih Foto.`);
-        return;
-      }
+    try {
+      const file = await canvasToJpegFile(
+        canvas,
+        `foto-bukti-${Date.now()}.jpg`,
+        maxSizeMb * 1024 * 1024
+      );
       setPreview(file);
       onChange(file, '');
       stopCamera();
-    }, 'image/jpeg', 0.9);
+    } catch (error) {
+      setCameraError(error.message || 'Foto gagal diproses. Silakan ambil ulang.');
+    }
   };
 
   const buttonStyle = {
@@ -134,10 +180,10 @@ export default function PhotoEvidenceInput({
       <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>{label}{required && <span style={{ color: '#ef4444' }}> *</span>}</label>
       <input ref={uploadInputRef} type="file" accept={accept} onChange={handleFile} hidden />
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
-        <button type="button" className="btn btn-secondary" style={buttonStyle} onClick={() => uploadInputRef.current?.click()}>
-          <HiOutlinePhotograph /> Pilih Foto
+        <button type="button" className="btn btn-secondary" style={buttonStyle} onClick={() => uploadInputRef.current?.click()} disabled={compressing}>
+          <HiOutlinePhotograph /> {compressing ? 'Mengompres Foto...' : 'Pilih Foto'}
         </button>
-        <button type="button" className="btn btn-secondary" style={buttonStyle} onClick={openCamera} disabled={cameraLoading}>
+        <button type="button" className="btn btn-secondary" style={buttonStyle} onClick={openCamera} disabled={cameraLoading || compressing}>
           <HiOutlineCamera /> {cameraLoading ? 'Membuka Kamera...' : 'Ambil Foto'}
         </button>
       </div>
@@ -161,7 +207,7 @@ export default function PhotoEvidenceInput({
         </div>
       )}
       {error && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{error}</div>}
-      {!error && <small style={{ display: 'block', marginTop: '5px', color: 'var(--gray-500)' }}>{required ? 'Foto wajib diunggah. ' : ''}Format gambar JPG atau PNG; maksimal {maxSizeMb} MB.</small>}
+      {!error && <small style={{ display: 'block', marginTop: '5px', color: 'var(--gray-500)' }}>{required ? 'Foto wajib diunggah. ' : ''}Format gambar JPG atau PNG; foto akan dikompres otomatis hingga maksimal {maxSizeMb} MB.</small>}
 
       {previewOpen && previewUrl && (
         <div className="modal-backdrop" onClick={() => setPreviewOpen(false)} style={{ zIndex: 1300 }}>

@@ -8,6 +8,7 @@ import {
   HiOutlineCube,
   HiOutlineDocumentReport,
   HiOutlineSwitchHorizontal,
+  HiOutlineTrash,
 } from 'react-icons/hi';
 import { MdHandshake } from 'react-icons/md';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
@@ -21,6 +22,7 @@ export default function QrScannerModal({
   onSelectAssetForLoan,
   onSelectAssetForMutation,
   onSelectAssetForInspection,
+  onSelectAssetForDeletion,
   onViewDetail,
 }) {
   const [activeTab, setActiveTab] = useState('camera'); // 'camera' | 'manual'
@@ -210,6 +212,8 @@ export default function QrScannerModal({
       startCamera();
     }
   };
+
+  const isDamagedAsset = /^rusak/i.test(String(lookupResult?.kondisi || '').trim());
 
   if (!isOpen) return null;
 
@@ -549,55 +553,88 @@ export default function QrScannerModal({
                   <span>Lihat Detail Lengkap &amp; Riwayat</span>
                 </button>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      handleClose();
-                      if (onSelectAssetForLoan) onSelectAssetForLoan(lookupResult);
-                    }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
-                  >
-                    <MdHandshake style={{ fontSize: '16px' }} />
-                    <span>Ajukan Pinjam</span>
-                  </button>
+                {isDamagedAsset ? (
+                  <>
+                    <div className="alert alert-danger" role="status" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '0.85rem' }}>
+                      <HiOutlineExclamationCircle style={{ fontSize: '18px', flexShrink: 0 }} />
+                      <span>Aset rusak. Ajukan penghapusan atau pindai aset lain.</span>
+                    </div>
+                    {onSelectAssetForDeletion && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={async () => {
+                          await handleClose();
+                          onSelectAssetForDeletion(lookupResult);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      >
+                        <HiOutlineTrash />
+                        <span>Ajukan Penghapusan</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleScanAgain}
+                      style={{ marginTop: '4px', fontSize: '0.8rem' }}
+                    >
+                      Pindai Aset Lain
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          handleClose();
+                          if (onSelectAssetForLoan) onSelectAssetForLoan(lookupResult);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
+                      >
+                        <MdHandshake style={{ fontSize: '16px' }} />
+                        <span>Ajukan Pinjam</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      handleClose();
-                      if (onSelectAssetForMutation) onSelectAssetForMutation(lookupResult);
-                    }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
-                  >
-                    <HiOutlineSwitchHorizontal style={{ fontSize: '16px' }} />
-                    <span>Ajukan Mutasi</span>
-                  </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          handleClose();
+                          if (onSelectAssetForMutation) onSelectAssetForMutation(lookupResult);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
+                      >
+                        <HiOutlineSwitchHorizontal style={{ fontSize: '16px' }} />
+                        <span>Ajukan Mutasi</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => {
-                      handleClose();
-                      if (onSelectAssetForInspection) onSelectAssetForInspection(lookupResult);
-                    }}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
-                  >
-                    <HiOutlineDocumentReport style={{ fontSize: '16px' }} />
-                    <span>Catat Pemeriksaan</span>
-                  </button>
-                </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          handleClose();
+                          if (onSelectAssetForInspection) onSelectAssetForInspection(lookupResult);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem' }}
+                      >
+                        <HiOutlineDocumentReport style={{ fontSize: '16px' }} />
+                        <span>Catat Pemeriksaan</span>
+                      </button>
+                    </div>
 
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleScanAgain}
-                  style={{ marginTop: '4px', fontSize: '0.8rem' }}
-                >
-                  Pindai Aset Lain
-                </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleScanAgain}
+                      style={{ marginTop: '4px', fontSize: '0.8rem' }}
+                    >
+                      Pindai Aset Lain
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
